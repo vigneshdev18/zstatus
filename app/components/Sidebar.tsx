@@ -8,6 +8,7 @@ import {
   HiExclamation,
   HiChartBar,
   HiFolder,
+  HiCog,
 } from "react-icons/hi";
 
 const navigationSections = [
@@ -43,6 +44,11 @@ const navigationSections = [
         name: "Groups",
         href: "/groups",
         icon: <HiFolder className="w-5 h-5" />,
+      },
+      {
+        name: "Settings",
+        href: "/settings",
+        icon: <HiCog className="w-5 h-5" />,
       },
     ],
   },

@@ -13,20 +13,33 @@ export async function register() {
     // Start the scheduler (creates indexes)
     await scheduler.start();
 
-    // Register heartbeat job (runs every 60 seconds)
+    // Register heartbeat job (runs every minute)
     scheduler.registerJob({
       name: "heartbeat",
-      interval: 60000,
+      schedule: "* * * * *", // Every minute
       handler: heartbeatJob,
     });
 
-    // Register health check job (runs every 60 seconds)
+    // Register health check job (runs every minute)
     scheduler.registerJob({
       name: "healthcheck",
-      interval: 60000,
+      schedule: "* * * * *", // Every minute
       handler: healthCheckJob,
     });
 
     console.log("[Instrumentation] Scheduler initialized with 2 jobs");
+
+    // Graceful shutdown handlers
+    const gracefulShutdown = (signal: string) => {
+      console.log(
+        `\n[Instrumentation] Received ${signal}, shutting down gracefully...`
+      );
+      scheduler.stop();
+      process.exit(0);
+    };
+
+    // Handle termination signals
+    process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+    process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
   }
 }

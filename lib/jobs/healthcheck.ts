@@ -3,10 +3,25 @@ import { createHealthCheck } from "@/lib/db/healthchecks";
 import { runHealthCheck } from "@/lib/healthcheck/runner";
 import { detectIncident } from "@/lib/incidents/detector";
 import { updateServiceStatus } from "@/lib/db/service-status";
+import { getSettings } from "@/lib/db/settings";
 
 // Health check job - runs for all services
 export async function healthCheckJob() {
   try {
+    // Check if health checks are globally enabled
+    const settings = await getSettings();
+
+    console.log(
+      `[HealthCheck] globalHealthChecksEnabled: ${settings.globalHealthChecksEnabled}`
+    );
+
+    if (!settings.globalHealthChecksEnabled) {
+      console.log(
+        "[HealthCheck] Global health checks disabled. Skipping all checks."
+      );
+      return;
+    }
+
     const services = await getAllServices();
 
     if (services.length === 0) {

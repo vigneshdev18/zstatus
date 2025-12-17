@@ -13,8 +13,7 @@ import {
 import { dispatchNotification } from "@/lib/notifications/dispatcher";
 import { getGroupByServiceId } from "@/lib/db/groups";
 import { getServiceById } from "@/lib/db/services";
-
-const DEDUP_WINDOW_MINUTES = 5; // Don't send duplicate alerts within 5 minutes
+import { getSettings } from "@/lib/db/settings";
 
 // Send an alert with deduplication and maintenance window checks
 export async function sendAlert(
@@ -27,6 +26,15 @@ export async function sendAlert(
   incidentId?: string
 ): Promise<void> {
   try {
+    // Check global alerts setting first
+    const settings = await getSettings();
+    if (!settings.globalAlertsEnabled) {
+      console.log(
+        `[Alert] Global alerts disabled. Skipping alert for ${serviceName}.`
+      );
+      return;
+    }
+
     const service = await getServiceById(serviceId);
     if (!service) {
       console.error(`[Alert] Service not found: ${serviceId}`);
@@ -70,15 +78,19 @@ export async function sendAlert(
       return;
     }
 
-    // Check for recent duplicate alerts (deduplication)
+    // Check for recent duplicate alerts using configurable cooldown
+    const cooldownMinutes = settings.alertCooldownMinutes;
     const recentAlerts = await getRecentAlerts(
       serviceId,
       type,
-      DEDUP_WINDOW_MINUTES
+      cooldownMinutes
     );
     if (recentAlerts.length > 0) {
+      const timeSinceLastAlert = Math.round(
+        (Date.now() - new Date(recentAlerts[0].createdAt).getTime()) / 1000
+      );
       console.log(
-        `[Alert] Skipping duplicate alert for ${serviceName} - already sent ${recentAlerts.length} in last ${DEDUP_WINDOW_MINUTES} minutes`
+        `[Alert] Skipping alert for ${serviceName} - cooldown active (${cooldownMinutes} min). Last alert sent ${timeSinceLastAlert}s ago.`
       );
       return;
     }

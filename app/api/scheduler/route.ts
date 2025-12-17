@@ -16,17 +16,17 @@ async function initializeScheduler() {
   // Start the scheduler (creates indexes)
   await scheduler.start();
 
-  // Register heartbeat job (runs every 60 seconds)
+  // Register heartbeat job (runs every minute)
   scheduler.registerJob({
     name: "heartbeat",
-    interval: 60000, // 60 seconds
+    schedule: "* * * * *", // Every minute
     handler: heartbeatJob,
   });
 
-  // Register health check job (runs every 60 seconds)
+  // Register health check job (runs every minute)
   scheduler.registerJob({
     name: "healthcheck",
-    interval: 60000, // 60 seconds
+    schedule: "* * * * *", // Every minute
     handler: healthCheckJob,
   });
 

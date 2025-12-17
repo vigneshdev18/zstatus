@@ -1,14 +1,32 @@
+import * as cron from "node-cron";
 import { createDatabaseIndexes } from "./db/maintenance-tasks";
 
-// Job definition
+/**
+ * Job definition for the scheduler
+ *
+ * Cron Expression Format:
+ * - second (0-59, optional)
+ * - minute (0-59)
+ * - hour (0-23)
+ * - day of month (1-31)
+ * - month (1-12)
+ * - day of week (0-7, where 0 or 7 is Sunday)
+ *
+ * Examples:
+ * - "* * * * *" - Every minute
+ * - "* 5 * * * *" - Every 5 minutes
+ * - "0 * * * *" - Every hour (at minute 0)
+ * - "0 0 * * *" - Every day at midnight
+ * - "* 30 * * * * *" - Every 30 seconds (with seconds field)
+ */
 interface Job {
   name: string;
-  interval: number; // in milliseconds
+  schedule: string; // cron expression
   handler: () => Promise<void>;
 }
 
 class Scheduler {
-  private jobs: Map<string, NodeJS.Timeout> = new Map();
+  private jobs: Map<string, cron.ScheduledTask> = new Map();
   private running: boolean = false;
   private jobExecutionCounts: Map<string, number> = new Map();
   private jobFailureCounts: Map<string, number> = new Map();
@@ -21,7 +39,7 @@ class Scheduler {
     }
 
     console.log(
-      `[Scheduler] Registering job: ${job.name} (interval: ${job.interval}ms)`
+      `[Scheduler] Registering job: ${job.name} (schedule: ${job.schedule})`
     );
 
     this.jobExecutionCounts.set(job.name, 0);
@@ -41,13 +59,22 @@ class Scheduler {
         console.error(`[Scheduler] Error in job ${job.name}:`, error);
 
         // Don't crash - isolate errors to prevent cascade failures
-        console.log(`[Scheduler] Job ${job.name} will retry on next interval`);
+        console.log(`[Scheduler] Job ${job.name} will retry on next schedule`);
       }
     };
 
-    // Start the interval
-    const intervalId = setInterval(safeHandler, job.interval);
-    this.jobs.set(job.name, intervalId);
+    // Validate cron expression
+    if (!cron.validate(job.schedule)) {
+      console.error(
+        `[Scheduler] Invalid cron expression for job ${job.name}: ${job.schedule}`
+      );
+      return;
+    }
+
+    // Schedule the job
+    const task = cron.schedule(job.schedule, safeHandler);
+
+    this.jobs.set(job.name, task);
 
     // Run immediately on registration
     safeHandler();
@@ -79,8 +106,8 @@ class Scheduler {
     console.log("[Scheduler] Stopping scheduler...");
     this.running = false;
 
-    for (const [name, intervalId] of this.jobs.entries()) {
-      clearInterval(intervalId);
+    for (const [name, task] of this.jobs.entries()) {
+      task.stop();
       console.log(`[Scheduler] Stopped job: ${name}`);
     }
 
@@ -94,6 +121,8 @@ class Scheduler {
       isRunning: this.running,
       jobCount: this.jobs.size,
       jobs: Array.from(this.jobs.keys()),
+      executions: Object.fromEntries(this.jobExecutionCounts),
+      failures: Object.fromEntries(this.jobFailureCounts),
     };
   }
 }
