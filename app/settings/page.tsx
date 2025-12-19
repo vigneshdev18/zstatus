@@ -2,112 +2,61 @@
 
 import { useState, useEffect } from "react";
 import Loading from "@/app/components/Loading";
+import Switch from "@/app/components/Switch/Switch";
+import { useApiQuery } from "@/lib/hooks/useApiQuery";
+import { useApiMutation } from "@/lib/hooks/useApiMutation";
+import { useQueryClient } from "@tanstack/react-query";
+
+interface Settings {
+  globalAlertsEnabled: boolean;
+  globalHealthChecksEnabled: boolean;
+  alertCooldownMinutes: number;
+}
 
 export default function SettingsPage() {
-  const [globalAlertsEnabled, setGlobalAlertsEnabled] = useState(true);
-  const [togglingGlobalAlerts, setTogglingGlobalAlerts] = useState(false);
-  const [globalHealthChecksEnabled, setGlobalHealthChecksEnabled] =
-    useState(true);
-  const [togglingHealthChecks, setTogglingHealthChecks] = useState(false);
+  const queryClient = useQueryClient();
   const [alertCooldownMinutes, setAlertCooldownMinutes] = useState(5);
-  const [savingCooldown, setSavingCooldown] = useState(false);
-  const [loading, setLoading] = useState(true);
 
+  // Fetch settings using useApiQuery
+  const { data: settingsResponse, isLoading } = useApiQuery<{
+    settings: Settings;
+  }>("/api/settings");
+
+  const settings = settingsResponse?.settings;
+
+  // Update local cooldown state when settings load
   useEffect(() => {
-    fetchSettings();
-  }, []);
-
-  const fetchSettings = async () => {
-    try {
-      const response = await fetch("/api/settings");
-      if (response.ok) {
-        const data = await response.json();
-        setGlobalAlertsEnabled(data.settings.globalAlertsEnabled);
-        setGlobalHealthChecksEnabled(
-          data.settings.globalHealthChecksEnabled ?? true
-        );
-        setAlertCooldownMinutes(data.settings.alertCooldownMinutes || 5);
-      }
-    } catch (error) {
-      console.error("Failed to fetch settings:", error);
-    } finally {
-      setLoading(false);
+    if (settings?.alertCooldownMinutes) {
+      setAlertCooldownMinutes(settings.alertCooldownMinutes);
     }
+  }, [settings]);
+
+  // Mutation for updating settings
+  const updateSettings = useApiMutation<Settings, Partial<Settings>>({
+    url: "/api/settings",
+    method: "PATCH",
+    invalidateQueries: [["api", "/api/settings"]],
+  });
+
+  const toggleGlobalAlerts = () => {
+    if (!settings) return;
+    updateSettings.mutate({
+      globalAlertsEnabled: !settings.globalAlertsEnabled,
+    });
   };
 
-  const toggleGlobalAlerts = async () => {
-    const currentValue = globalAlertsEnabled;
-    // Optimistic update
-    setGlobalAlertsEnabled(!currentValue);
-    setTogglingGlobalAlerts(true);
-
-    try {
-      const response = await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ globalAlertsEnabled: !currentValue }),
-      });
-
-      if (!response.ok) {
-        // Revert on error
-        setGlobalAlertsEnabled(currentValue);
-      }
-    } catch (error) {
-      console.error("Failed to toggle global alerts:", error);
-      // Revert on error
-      setGlobalAlertsEnabled(currentValue);
-    } finally {
-      setTogglingGlobalAlerts(false);
-    }
+  const toggleGlobalHealthChecks = () => {
+    if (!settings) return;
+    updateSettings.mutate({
+      globalHealthChecksEnabled: !settings.globalHealthChecksEnabled,
+    });
   };
 
-  const toggleGlobalHealthChecks = async () => {
-    const currentValue = globalHealthChecksEnabled;
-    // Optimistic update
-    setGlobalHealthChecksEnabled(!currentValue);
-    setTogglingHealthChecks(true);
-
-    try {
-      const response = await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ globalHealthChecksEnabled: !currentValue }),
-      });
-
-      if (!response.ok) {
-        // Revert on error
-        setGlobalHealthChecksEnabled(currentValue);
-      }
-    } catch (error) {
-      console.error("Failed to toggle global health checks:", error);
-      // Revert on error
-      setGlobalHealthChecksEnabled(currentValue);
-    } finally {
-      setTogglingHealthChecks(false);
-    }
+  const saveAlertCooldown = () => {
+    updateSettings.mutate({ alertCooldownMinutes });
   };
 
-  const saveAlertCooldown = async () => {
-    setSavingCooldown(true);
-
-    try {
-      const response = await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ alertCooldownMinutes }),
-      });
-
-      if (!response.ok) {
-        console.error("Failed to save alert cooldown");
-      }
-    } catch (error) {
-      console.error("Failed to save alert cooldown:", error);
-    } finally {
-      setSavingCooldown(false);
-    }
-  };
-
-  if (loading) {
+  if (isLoading || !settings) {
     return <Loading message="Loading settings..." />;
   }
 
@@ -123,7 +72,9 @@ export default function SettingsPage() {
       <div className="space-y-6">
         {/* Alerts Section */}
         <div className="glass rounded-2xl p-6">
-          <h2 className="text-2xl font-bold text-white mb-4">Alert Settings</h2>
+          <h2 className="text-2xl font-bold text-white mb-4">
+            General Settings
+          </h2>
 
           {/* Global Alerts Toggle */}
           <div className="space-y-4">
@@ -139,40 +90,20 @@ export default function SettingsPage() {
                 </p>
               </div>
               <div className="flex items-center gap-4 ml-6">
-                <button
-                  onClick={toggleGlobalHealthChecks}
-                  disabled={togglingHealthChecks}
-                  className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
-                    globalHealthChecksEnabled ? "bg-purple-500" : "bg-gray-600"
-                  } ${togglingHealthChecks ? "opacity-50 cursor-wait" : ""}`}
-                  title={
-                    globalHealthChecksEnabled
-                      ? "Health checks enabled"
-                      : "Health checks disabled"
+                <Switch
+                  checked={settings.globalHealthChecksEnabled}
+                  onChange={toggleGlobalHealthChecks}
+                  disabled={updateSettings.isPending}
+                  label={
+                    settings.globalHealthChecksEnabled ? "Enabled" : "Disabled"
                   }
-                >
-                  <span
-                    className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                      globalHealthChecksEnabled
-                        ? "translate-x-7"
-                        : "translate-x-1"
-                    }`}
-                  />
-                </button>
-                <span
-                  className={`text-sm font-medium min-w-[70px] ${
-                    globalHealthChecksEnabled
-                      ? "text-purple-400"
-                      : "text-gray-500"
-                  }`}
-                >
-                  {globalHealthChecksEnabled ? "Enabled" : "Disabled"}
-                </span>
+                  labelPosition="right"
+                />
               </div>
             </div>
 
             {/* Warning when health checks disabled */}
-            {!globalHealthChecksEnabled && (
+            {!settings.globalHealthChecksEnabled && (
               <div className="p-4 rounded-xl border border-red-500/30 bg-red-500/10">
                 <div className="flex items-start gap-3">
                   <span className="text-2xl">🛑</span>
@@ -201,36 +132,18 @@ export default function SettingsPage() {
                 </p>
               </div>
               <div className="flex items-center gap-4 ml-6">
-                <button
-                  onClick={toggleGlobalAlerts}
-                  disabled={togglingGlobalAlerts}
-                  className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
-                    globalAlertsEnabled ? "bg-purple-500" : "bg-gray-600"
-                  } ${togglingGlobalAlerts ? "opacity-50 cursor-wait" : ""}`}
-                  title={
-                    globalAlertsEnabled
-                      ? "Global alerts enabled"
-                      : "Global alerts disabled"
-                  }
-                >
-                  <span
-                    className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                      globalAlertsEnabled ? "translate-x-7" : "translate-x-1"
-                    }`}
-                  />
-                </button>
-                <span
-                  className={`text-sm font-medium min-w-[70px] ${
-                    globalAlertsEnabled ? "text-purple-400" : "text-gray-500"
-                  }`}
-                >
-                  {globalAlertsEnabled ? "Enabled" : "Disabled"}
-                </span>
+                <Switch
+                  checked={settings.globalAlertsEnabled}
+                  onChange={toggleGlobalAlerts}
+                  disabled={updateSettings.isPending}
+                  label={settings.globalAlertsEnabled ? "Enabled" : "Disabled"}
+                  labelPosition="right"
+                />
               </div>
             </div>
 
             {/* Warning when disabled */}
-            {!globalAlertsEnabled && (
+            {!settings.globalAlertsEnabled && (
               <div className="p-4 rounded-xl border border-yellow-500/30 bg-yellow-500/10">
                 <div className="flex items-start gap-3">
                   <span className="text-2xl">⚠️</span>
@@ -260,10 +173,10 @@ export default function SettingsPage() {
               </p>
               <div className="flex items-end gap-4">
                 <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-300">
                     Cooldown (minutes)
                   </label>
-                  <p className="text-xs text-gray-500 mb-1">
+                  <p className="text-xs text-gray-500 mb-2">
                     Minimum time between consecutive alerts for the same service
                   </p>
 
@@ -280,10 +193,10 @@ export default function SettingsPage() {
                 </div>
                 <button
                   onClick={saveAlertCooldown}
-                  disabled={savingCooldown}
+                  disabled={updateSettings.isPending}
                   className="px-6 py-2 bg-gradient-primary rounded-lg text-white font-medium hover:scale-105 transition-smooth shadow-gradient disabled:opacity-50 disabled:cursor-wait"
                 >
-                  {savingCooldown ? "Saving..." : "Save"}
+                  {updateSettings.isPending ? "Saving..." : "Save"}
                 </button>
               </div>
             </div>
@@ -291,14 +204,14 @@ export default function SettingsPage() {
         </div>
 
         {/* Future Settings Sections */}
-        <div className="glass rounded-2xl p-6">
+        {/* <div className="glass rounded-2xl p-6">
           <h2 className="text-2xl font-bold text-white mb-4">
             General Settings
           </h2>
           <p className="text-gray-400 text-sm">
             Additional settings will be available here in future updates.
           </p>
-        </div>
+        </div> */}
       </div>
     </div>
   );

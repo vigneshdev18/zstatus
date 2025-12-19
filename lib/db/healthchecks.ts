@@ -51,6 +51,118 @@ export async function getHealthChecksByServiceId(
   return checks;
 }
 
+// Get health checks for a service with pagination and filters
+export async function getHealthChecksByServiceIdPaginated(
+  serviceId: string,
+  offset: number = 0,
+  limit: number = 20,
+  filters?: {
+    fromDate?: Date;
+    toDate?: Date;
+    minResponseTime?: number;
+    maxResponseTime?: number;
+    status?: string;
+  }
+): Promise<HealthCheck[]> {
+  const db = await getDatabase();
+
+  // Build query with filters
+  const query: any = { serviceId };
+
+  // Time range filter
+  if (filters?.fromDate || filters?.toDate) {
+    query.timestamp = {};
+    if (filters.fromDate) {
+      query.timestamp.$gte = filters.fromDate;
+    }
+    if (filters.toDate) {
+      query.timestamp.$lte = filters.toDate;
+    }
+  }
+
+  // Response time filter
+  if (
+    filters?.minResponseTime !== undefined ||
+    filters?.maxResponseTime !== undefined
+  ) {
+    query.responseTime = {};
+    if (filters.minResponseTime !== undefined) {
+      query.responseTime.$gte = filters.minResponseTime;
+    }
+    if (filters.maxResponseTime !== undefined) {
+      query.responseTime.$lte = filters.maxResponseTime;
+    }
+  }
+
+  // Status filter
+  if (filters?.status && filters.status !== "all") {
+    query.status = filters.status;
+  }
+
+  const checks = await db
+    .collection<HealthCheck>(HEALTHCHECKS_COLLECTION)
+    .find(query)
+    .sort({ timestamp: -1 })
+    .skip(offset)
+    .limit(limit)
+    .toArray();
+
+  return checks;
+}
+
+// Count total health checks for a service with filters
+export async function countHealthChecksByServiceId(
+  serviceId: string,
+  filters?: {
+    fromDate?: Date;
+    toDate?: Date;
+    minResponseTime?: number;
+    maxResponseTime?: number;
+    status?: string;
+  }
+): Promise<number> {
+  const db = await getDatabase();
+
+  // Build query with filters
+  const query: any = { serviceId };
+
+  // Time range filter
+  if (filters?.fromDate || filters?.toDate) {
+    query.timestamp = {};
+    if (filters.fromDate) {
+      query.timestamp.$gte = filters.fromDate;
+    }
+    if (filters.toDate) {
+      query.timestamp.$lte = filters.toDate;
+    }
+  }
+
+  // Response time filter
+  if (
+    filters?.minResponseTime !== undefined ||
+    filters?.maxResponseTime !== undefined
+  ) {
+    query.responseTime = {};
+    if (filters.minResponseTime !== undefined) {
+      query.responseTime.$gte = filters.minResponseTime;
+    }
+    if (filters.maxResponseTime !== undefined) {
+      query.responseTime.$lte = filters.maxResponseTime;
+    }
+  }
+
+  // Status filter
+  if (filters?.status && filters.status !== "all") {
+    query.status = filters.status;
+  }
+
+  const count = await db
+    .collection<HealthCheck>(HEALTHCHECKS_COLLECTION)
+    .countDocuments(query);
+
+  return count;
+}
+
 // Get recent health checks (with optional date range filter)
 export async function getRecentHealthChecks(
   limit: number = 100,

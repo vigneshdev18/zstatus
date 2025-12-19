@@ -39,6 +39,18 @@ export interface Service {
   owner?: string; // Primary contact or owner email/name
   description?: string; // Optional service description
 
+  // Response time alerting
+  responseTimeWarningMs?: number; // Warning threshold in milliseconds (default: 3000)
+  responseTimeWarningAttempts?: number; // Consecutive attempts before warning alert (default: 3)
+  responseTimeCriticalMs?: number; // Critical threshold in milliseconds (default: 5000)
+  responseTimeCriticalAttempts?: number; // Consecutive attempts before critical alert (default: 3)
+  consecutiveSlowWarning?: number; // Current count of consecutive warning threshold breaches
+  consecutiveSlowCritical?: number; // Current count of consecutive critical threshold breaches
+
+  // Last alert tracking
+  lastAlertType?: string; // Type of last alert sent (e.g., "INCIDENT_OPENED", "RESPONSE_TIME")
+  lastAlertSentAt?: Date; // Timestamp of last alert sent
+
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date; // Soft delete timestamp
@@ -48,8 +60,8 @@ export interface Service {
 export interface CreateServiceInput {
   name: string;
   serviceType: ServiceType;
-  timeout: number;
-  checkInterval: number;
+  timeout?: number;
+  checkInterval?: number;
 
   // API fields
   healthCheckUrl?: string;
@@ -64,50 +76,53 @@ export interface CreateServiceInput {
   // Elasticsearch fields
   esConnectionString?: string;
 
-  // Optional metadata
-  groupId?: string; // Optional group assignment
-  alertsEnabled?: boolean; // Whether to send alerts
-  description?: string;
+  // Metadata
+  groupId?: string;
+  alertsEnabled?: boolean;
+  dependencies?: string[];
+  grafanaDashboardId?: string;
   team?: string;
   owner?: string;
-  grafanaDashboardId?: string;
+  description?: string;
+
+  // Response time alerting
+  responseTimeWarningMs?: number;
+  responseTimeWarningAttempts?: number;
+  responseTimeCriticalMs?: number;
+  responseTimeCriticalAttempts?: number;
 }
 
 // DTO for updating a service
 export interface UpdateServiceInput {
   name?: string;
-  serviceType?: ServiceType;
   timeout?: number;
   checkInterval?: number;
-  lastStatus?: "UP" | "DOWN";
-  lastCheckTime?: Date;
 
-  // Protocol-specific fields
+  // API fields
   healthCheckUrl?: string;
   httpMethod?: HttpMethod;
   requestHeaders?: Record<string, string>;
   requestBody?: string;
+
+  // MongoDB fields
   mongoConnectionString?: string;
   mongoDatabase?: string;
+
+  // Elasticsearch fields
   esConnectionString?: string;
 
   // Metadata
-  groupId?: string; // Optional group assignment
-  alertsEnabled?: boolean; // Whether to send alerts
-  description?: string;
+  groupId?: string | null; // Allow null to remove group assignment
+  alertsEnabled?: boolean;
+  dependencies?: string[];
+  grafanaDashboardId?: string;
   team?: string;
   owner?: string;
-  grafanaDashboardId?: string;
-  deletedAt?: Date; // For soft delete/restore operations
-}
+  description?: string;
 
-// DTO for service response (what API returns)
-export interface ServiceResponse {
-  id: string;
-  name: string;
-  serviceType: ServiceType;
-  timeout: number;
-  checkInterval: number;
-  createdAt: string;
-  updatedAt: string;
+  // Response time alerting
+  responseTimeWarningMs?: number;
+  responseTimeWarningAttempts?: number;
+  responseTimeCriticalMs?: number;
+  responseTimeCriticalAttempts?: number;
 }

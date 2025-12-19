@@ -51,6 +51,14 @@ export async function createService(
       grafanaDashboardId: input.grafanaDashboardId,
     }),
 
+    // Response time alerting with defaults
+    responseTimeWarningMs: input.responseTimeWarningMs ?? 3000, // Default 3 seconds
+    responseTimeWarningAttempts: input.responseTimeWarningAttempts ?? 3,
+    responseTimeCriticalMs: input.responseTimeCriticalMs ?? 5000, // Default 5 seconds
+    responseTimeCriticalAttempts: input.responseTimeCriticalAttempts ?? 3,
+    consecutiveSlowWarning: 0, // Initialize counters
+    consecutiveSlowCritical: 0,
+
     createdAt: new Date(),
     updatedAt: new Date(),
   };

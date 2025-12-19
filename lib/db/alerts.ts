@@ -106,6 +106,66 @@ export async function getAlertsByServiceId(
     .toArray();
 }
 
+// Get alerts by service with pagination
+export async function getAlertsByServiceIdPaginated(
+  serviceId: string,
+  offset: number = 0,
+  limit: number = 10,
+  filters?: {
+    severity?: string;
+    type?: string;
+  }
+): Promise<Alert[]> {
+  const db = await getDatabase();
+
+  // Build query with filters
+  const query: any = { serviceId };
+
+  // Severity filter
+  if (filters?.severity && filters.severity !== "all") {
+    query.severity = filters.severity;
+  }
+
+  // Type filter
+  if (filters?.type && filters.type !== "all") {
+    query.type = filters.type;
+  }
+
+  return await db
+    .collection<Alert>(ALERTS_COLLECTION)
+    .find(query)
+    .sort({ createdAt: -1 })
+    .skip(offset)
+    .limit(limit)
+    .toArray();
+}
+
+// Count total alerts for a service
+export async function countAlertsByServiceId(
+  serviceId: string,
+  filters?: {
+    severity?: string;
+    type?: string;
+  }
+): Promise<number> {
+  const db = await getDatabase();
+
+  // Build query with filters
+  const query: any = { serviceId };
+
+  // Severity filter
+  if (filters?.severity && filters.severity !== "all") {
+    query.severity = filters.severity;
+  }
+
+  // Type filter
+  if (filters?.type && filters.type !== "all") {
+    query.type = filters.type;
+  }
+
+  return await db.collection<Alert>(ALERTS_COLLECTION).countDocuments(query);
+}
+
 // Get recent alerts for deduplication check
 export async function getRecentAlerts(
   serviceId: string,

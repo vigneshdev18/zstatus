@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import AnalyticsChart from "@/app/components/AnalyticsChart";
+import Button from "@/app/components/Button/Button";
 
 interface HealthCheck {
   id: string;
@@ -91,24 +92,15 @@ export default function AnalyticsWithFilter({
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-white">Filter Services</h3>
           <div className="flex items-center gap-2">
-            <button
-              onClick={selectAll}
-              className="px-3 py-1.5 text-xs glass rounded-lg text-white hover:bg-white/10 transition-smooth"
-            >
+            <Button onClick={selectAll} variant="ghost" size="sm">
               Select All
-            </button>
-            <button
-              onClick={deselectAll}
-              className="px-3 py-1.5 text-xs glass rounded-lg text-white hover:bg-white/10 transition-smooth"
-            >
+            </Button>
+            <Button onClick={deselectAll} variant="ghost" size="sm">
               Deselect All
-            </button>
-            <button
-              onClick={resetSelection}
-              className="px-3 py-1.5 text-xs bg-gradient-primary rounded-lg text-white hover:scale-105 transition-smooth"
-            >
+            </Button>
+            <Button onClick={resetSelection} size="sm">
               Reset
-            </button>
+            </Button>
           </div>
         </div>
 

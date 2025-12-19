@@ -61,6 +61,23 @@
   .transition-smooth {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
+
+  /* Loading bar animation */
+  @keyframes loading-bar {
+    0% {
+      transform: scaleX(0);
+    }
+    50% {
+      transform: scaleX(0.5);
+    }
+    100% {
+      transform: scaleX(1);
+    }
+  }
+
+  .animate-loading-bar {
+    animation: loading-bar 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
 }
 
 @layer utilities {

@@ -7,7 +7,8 @@ export type AlertSeverity = "INFO" | "WARNING" | "CRITICAL";
 export type AlertType =
   | "INCIDENT_OPENED"
   | "INCIDENT_CLOSED"
-  | "SERVICE_DEGRADED";
+  | "SERVICE_DEGRADED"
+  | "RESPONSE_TIME";
 
 // Notification channel types
 export type NotificationChannel = "teams" | "email" | "slack";

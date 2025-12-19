@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { getAllServices } from "@/lib/db/services";
 import { getAllIncidents } from "@/lib/db/incidents";
+import { Grid, GridItem } from "@/app/components/Grid";
 import RefreshServiceButton from "@/app/components/RefreshServiceButton";
+import { HiServer, HiCheckCircle, HiExclamation } from "react-icons/hi";
 
 export default async function OverviewPage() {
   const services = await getAllServices();
@@ -20,83 +22,57 @@ export default async function OverviewPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <Grid cols={3} gap={6}>
         {/* Total Services */}
-        <div className="glass rounded-2xl p-6 transition-smooth hover:scale-105 hover:shadow-gradient">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-400 mb-1">Total Services</p>
-              <p className="text-4xl font-bold text-white">{services.length}</p>
-            </div>
-            <div className="w-16 h-16 bg-gradient-primary rounded-xl flex items-center justify-center">
-              <svg
-                className="w-8 h-8 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"
-                />
-              </svg>
+        <GridItem>
+          <div className="glass rounded-2xl p-6 transition-smooth hover:scale-105 hover:shadow-gradient">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-400 mb-1">Total Services</p>
+                <p className="text-4xl font-bold text-white">
+                  {services.length}
+                </p>
+              </div>
+              <div className="w-16 h-16 bg-gradient-primary rounded-xl flex items-center justify-center">
+                <HiServer className="w-8 h-8 text-white" />
+              </div>
             </div>
           </div>
-        </div>
+        </GridItem>
 
         {/* Healthy Services */}
-        <div className="glass rounded-2xl p-6 transition-smooth hover:scale-105 hover:shadow-gradient">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-400 mb-1">Healthy</p>
-              <p className="text-4xl font-bold text-white">{healthyServices}</p>
-            </div>
-            <div className="w-16 h-16 bg-gradient-success rounded-xl flex items-center justify-center relative">
-              <div className="absolute inset-0 bg-green-500/20 rounded-xl status-pulse"></div>
-              <svg
-                className="w-8 h-8 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
+        <GridItem>
+          <div className="glass rounded-2xl p-6 transition-smooth hover:scale-105 hover:shadow-gradient">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-400 mb-1">Healthy</p>
+                <p className="text-4xl font-bold text-white">
+                  {healthyServices}
+                </p>
+              </div>
+              <div className="w-16 h-16 bg-gradient-success rounded-xl flex items-center justify-center relative">
+                <div className="absolute inset-0 bg-green-500/20 rounded-xl status-pulse"></div>
+                <HiCheckCircle className="w-8 h-8 text-white" />
+              </div>
             </div>
           </div>
-        </div>
+        </GridItem>
 
         {/* Down Services */}
-        <div className="glass rounded-2xl p-6 transition-smooth hover:scale-105 hover:shadow-gradient">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-400 mb-1">Down</p>
-              <p className="text-4xl font-bold text-white">{downServices}</p>
-            </div>
-            <div className="w-16 h-16 bg-gradient-danger rounded-xl flex items-center justify-center">
-              <svg
-                className="w-8 h-8 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
+        <GridItem>
+          <div className="glass rounded-2xl p-6 transition-smooth hover:scale-105 hover:shadow-gradient">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-400 mb-1">Down</p>
+                <p className="text-4xl font-bold text-white">{downServices}</p>
+              </div>
+              <div className="w-16 h-16 bg-gradient-danger rounded-xl flex items-center justify-center">
+                <HiExclamation className="w-8 h-8 text-white" />
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        </GridItem>
+      </Grid>
 
       {/* Services & Incidents Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -174,19 +150,7 @@ export default async function OverviewPage() {
           {activeIncidents.length === 0 ? (
             <div className="text-center py-12">
               <div className="w-16 h-16 bg-green-500/20 rounded-full mx-auto mb-4 flex items-center justify-center">
-                <svg
-                  className="w-8 h-8 text-green-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
+                <HiCheckCircle className="w-8 h-8 text-green-400" />
               </div>
               <p className="text-gray-400">No active incidents</p>
             </div>

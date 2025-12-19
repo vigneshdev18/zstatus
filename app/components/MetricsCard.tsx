@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
+import { useApiQuery } from "@/lib/hooks/useApiQuery";
 
 interface Metrics {
   serviceId: string;
@@ -22,30 +23,15 @@ interface MetricsCardProps {
 }
 
 export default function MetricsCard({ serviceId }: MetricsCardProps) {
-  const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [timeWindow, setTimeWindow] = useState<"7d" | "30d" | "all">("30d");
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchMetrics();
-  }, [serviceId, timeWindow]);
-
-  const fetchMetrics = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(
-        `/api/services/${serviceId}/metrics?window=${timeWindow}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setMetrics(data);
-      }
-    } catch (error) {
-      console.error("Failed to fetch metrics:", error);
-    } finally {
-      setLoading(false);
+  // Fetch metrics using useApiQuery
+  const { data: metrics, isLoading: loading } = useApiQuery<Metrics>(
+    `/api/services/${serviceId}/metrics?window=${timeWindow}`,
+    {
+      enabled: !!serviceId,
     }
-  };
+  );
 
   if (loading) {
     return (

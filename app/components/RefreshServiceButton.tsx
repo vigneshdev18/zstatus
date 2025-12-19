@@ -1,48 +1,39 @@
 "use client";
 
 import { MouseEventHandler, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useApiMutation } from "@/lib/hooks/useApiMutation";
 
 export default function RefreshServiceButton({
   serviceId,
 }: {
   serviceId: string;
 }) {
-  const router = useRouter();
-  const [checking, setChecking] = useState(false);
+  const triggerCheck = useApiMutation<void, void>({
+    url: `/api/services/${serviceId}/check`,
+    method: "POST",
+    invalidateQueries: [
+      ["api", `/api/services/${serviceId}`],
+      ["api", "/api/services"],
+    ],
+  });
 
   const handleRefresh: MouseEventHandler<HTMLButtonElement> = async (event) => {
     event.preventDefault();
     event.stopPropagation();
-
-    setChecking(true);
-    try {
-      const response = await fetch(`/api/services/${serviceId}/check`, {
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to run health check");
-      }
-
-      // Refresh the page to show updated data
-      router.refresh();
-    } catch (error) {
-      console.error("Health check error:", error);
-    } finally {
-      setChecking(false);
-    }
+    triggerCheck.mutate(undefined);
   };
 
   return (
     <button
       onClick={handleRefresh}
-      disabled={checking}
+      disabled={triggerCheck.isPending}
       className="p-2 glass rounded-lg hover:bg-white/10 transition-smooth disabled:opacity-50 cursor-pointer"
       title="Run manual health check"
     >
       <svg
-        className={`w-4 h-4 text-gray-400 ${checking ? "animate-spin" : ""}`}
+        className={`w-4 h-4 text-gray-400 ${
+          triggerCheck.isPending ? "animate-spin" : ""
+        }`}
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"

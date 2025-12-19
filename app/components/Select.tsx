@@ -1,3 +1,5 @@
+"use client";
+
 import ReactSelect, {
   Props as ReactSelectProps,
   StylesConfig,
@@ -10,6 +12,7 @@ export interface SelectOption {
 
 interface SelectProps extends Omit<ReactSelectProps<SelectOption>, "styles"> {
   error?: boolean;
+  instanceId?: string;
 }
 
 const customStyles: StylesConfig<SelectOption> = {
@@ -103,10 +106,16 @@ const customStyles: StylesConfig<SelectOption> = {
   }),
 };
 
-export default function Select(props: SelectProps) {
+import { useId } from "react";
+
+export default function Select({ instanceId, ...props }: SelectProps) {
+  const generatedId = useId();
+  const stableId = instanceId || generatedId;
+
   return (
     <ReactSelect
       {...props}
+      instanceId={stableId}
       styles={customStyles}
       className="react-select-container"
       classNamePrefix="react-select"

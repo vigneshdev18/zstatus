@@ -2,72 +2,55 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { HiTrash } from "react-icons/hi";
+import Button from "@/app/components/Button/Button";
+import { useApiMutation } from "@/lib/hooks/useApiMutation";
 
-export default function DeleteServiceButton({
-  serviceId,
-  serviceName,
-}: {
+interface Props {
   serviceId: string;
   serviceName: string;
-}) {
+}
+
+export default function DeleteServiceButton({ serviceId, serviceName }: Props) {
   const router = useRouter();
-  const [deleteConfirm, setDeleteConfirm] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
+
+  const deleteService = useApiMutation<void, void>({
+    url: `/api/services/${serviceId}`,
+    method: "DELETE",
+    invalidateQueries: [["api", "/api/services"]],
+    options: {
+      onSuccess: () => {
+        router.push("/services");
+        router.refresh();
+      },
+      onError: (err) => {
+        setError(err.message || "Failed to delete service");
+      },
+    },
+  });
 
   const handleDelete = async () => {
-    if (!deleteConfirm) {
-      setDeleteConfirm(true);
+    if (
+      !confirm(`Are you sure you want to delete the service "${serviceName}"?`)
+    ) {
       return;
     }
 
-    setDeleting(true);
-    try {
-      const response = await fetch(`/api/services/${serviceId}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to delete service");
-      }
-
-      router.push("/services");
-      router.refresh();
-    } catch (err) {
-      console.error("Delete error:", err);
-      setDeleting(false);
-      setDeleteConfirm(false);
-    }
+    deleteService.mutate(undefined);
   };
 
   return (
     <div className="flex items-center gap-3">
-      <button
+      {error && <p className="text-sm text-red-400">{error}</p>}
+      <Button
         onClick={handleDelete}
-        disabled={deleting}
-        className={`
-          px-6 py-3 rounded-xl font-medium transition-smooth
-          ${
-            deleteConfirm
-              ? "bg-gradient-danger text-white hover:scale-105 shadow-gradient"
-              : "glass text-red-400 hover:bg-red-500/10"
-          }
-          disabled:opacity-50 disabled:hover:scale-100
-        `}
+        loading={deleteService.isPending}
+        variant="danger"
+        icon={<HiTrash />}
       >
-        {deleting
-          ? "Deleting..."
-          : deleteConfirm
-          ? `Click again to confirm deletion of "${serviceName}"`
-          : "Delete Service"}
-      </button>
-      {deleteConfirm && (
-        <button
-          onClick={() => setDeleteConfirm(false)}
-          className="px-6 py-3 glass rounded-xl text-white hover:bg-white/10 transition-smooth"
-        >
-          Cancel
-        </button>
-      )}
+        {deleteService.isPending ? "Deleting..." : "Delete Service"}
+      </Button>
     </div>
   );
 }

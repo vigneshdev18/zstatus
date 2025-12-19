@@ -1,9 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import AnalyticsWithFilter from "@/app/components/AnalyticsWithFilter";
-import DateRangePicker, { TimeRange } from "@/app/components/DateRangePicker";
+import {
+  default as TimeRangeDropdown,
+  TimeRange,
+} from "@/app/components/TimeRangeDropdown";
 import Loading from "@/app/components/Loading";
+import { useApiQuery } from "@/lib/hooks/useApiQuery";
 
 // Import types from AnalyticsWithFilter to ensure compatibility
 interface HealthCheck {
@@ -24,9 +28,8 @@ interface ServiceData {
 }
 
 export default function AnalyticsPage() {
-  const [services, setServices] = useState<any[]>([]);
   const [serviceData, setServiceData] = useState<ServiceData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [healthChecksLoading, setHealthChecksLoading] = useState(true);
   const [timeRange, setTimeRange] = useState<TimeRange>({
     label: "Last 24 hours",
     value: "24h",
@@ -34,18 +37,22 @@ export default function AnalyticsPage() {
     to: new Date(),
   });
 
+  // Fetch services using useApiQuery
+  const { data: servicesResponse, isLoading: servicesLoading } = useApiQuery<{
+    services: any[];
+  }>("/api/services");
+
+  const services = servicesResponse?.services || [];
+
   useEffect(() => {
-    fetchData();
-  }, [timeRange]);
+    fetchHealthChecks();
+  }, [timeRange, services]);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchHealthChecks = async () => {
+    if (services.length === 0) return;
+
+    setHealthChecksLoading(true);
     try {
-      // Fetch services
-      const servicesRes = await fetch("/api/services");
-      const servicesData = await servicesRes.json();
-      setServices(servicesData.services || []);
-
       // Fetch health checks with date range filter
       const fromParam = timeRange.from.toISOString();
       const toParam = timeRange.to.toISOString();
@@ -56,7 +63,7 @@ export default function AnalyticsPage() {
       const healthChecks = healthChecksData.healthChecks || [];
 
       // Group by service
-      const grouped = (servicesData.services || []).map((service: any) => {
+      const grouped = services.map((service: any) => {
         const checks = healthChecks
           .filter((hc: any) => hc.serviceId === service.id)
           .sort(
@@ -79,9 +86,11 @@ export default function AnalyticsPage() {
     } catch (error) {
       console.error("Failed to fetch analytics data:", error);
     } finally {
-      setLoading(false);
+      setHealthChecksLoading(false);
     }
   };
+
+  const loading = servicesLoading || healthChecksLoading;
 
   const totalDataPoints = serviceData.reduce(
     (sum, service) => sum + service.checks.length,
@@ -120,8 +129,12 @@ export default function AnalyticsPage() {
           </p>
         </div>
 
-        {/* Date Range Picker */}
-        <DateRangePicker value={timeRange} onChange={setTimeRange} />
+        {/* Time Range Dropdown */}
+        <TimeRangeDropdown
+          value={timeRange}
+          onChange={setTimeRange}
+          align="right"
+        />
       </div>
 
       {/* Stats */}

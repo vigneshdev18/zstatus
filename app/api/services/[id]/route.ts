@@ -49,6 +49,18 @@ export async function GET(
         owner: service.owner,
         grafanaDashboardId: service.grafanaDashboardId,
 
+        // Status fields
+        lastStatus: service.lastStatus,
+        lastCheckedAt: service.lastCheckedAt?.toISOString(),
+        lastAlertType: service.lastAlertType,
+        lastAlertSentAt: service.lastAlertSentAt?.toISOString(),
+
+        // Response time alerting
+        responseTimeWarningMs: service.responseTimeWarningMs,
+        responseTimeWarningAttempts: service.responseTimeWarningAttempts,
+        responseTimeCriticalMs: service.responseTimeCriticalMs,
+        responseTimeCriticalAttempts: service.responseTimeCriticalAttempts,
+
         createdAt: service.createdAt.toISOString(),
         updatedAt: service.updatedAt.toISOString(),
       },
@@ -92,7 +104,48 @@ export async function PUT(
       team: body.team,
       owner: body.owner,
       grafanaDashboardId: body.grafanaDashboardId,
+
+      // Response time alerting
+      responseTimeWarningMs: body.responseTimeWarningMs,
+      responseTimeWarningAttempts: body.responseTimeWarningAttempts,
+      responseTimeCriticalMs: body.responseTimeCriticalMs,
+      responseTimeCriticalAttempts: body.responseTimeCriticalAttempts,
     };
+
+    // Validate response time thresholds
+    if (
+      updateData.responseTimeWarningMs &&
+      updateData.responseTimeCriticalMs &&
+      updateData.responseTimeWarningMs >= updateData.responseTimeCriticalMs
+    ) {
+      return NextResponse.json(
+        {
+          error: "Warning threshold must be less than critical threshold",
+        },
+        { status: 400 }
+      );
+    }
+
+    // Validate attempt counts
+    if (
+      updateData.responseTimeWarningAttempts &&
+      updateData.responseTimeWarningAttempts < 1
+    ) {
+      return NextResponse.json(
+        { error: "Warning attempts must be at least 1" },
+        { status: 400 }
+      );
+    }
+
+    if (
+      updateData.responseTimeCriticalAttempts &&
+      updateData.responseTimeCriticalAttempts < 1
+    ) {
+      return NextResponse.json(
+        { error: "Critical attempts must be at least 1" },
+        { status: 400 }
+      );
+    }
 
     const service = await updateService(id, updateData);
 

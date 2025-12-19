@@ -12,7 +12,7 @@ import {
 } from "@/lib/types/alert";
 import { dispatchNotification } from "@/lib/notifications/dispatcher";
 import { getGroupByServiceId } from "@/lib/db/groups";
-import { getServiceById } from "@/lib/db/services";
+import { getServiceById, updateService } from "@/lib/db/services";
 import { getSettings } from "@/lib/db/settings";
 
 // Send an alert with deduplication and maintenance window checks
@@ -111,7 +111,7 @@ export async function sendAlert(
     );
 
     // Enhance message with group information
-    const enhancedMessage = `**Group:** ${group.name}\n\n${message}`;
+    const enhancedMessage = `**Group:** ${group.name}\\n\\n${message}`;
 
     // Send notifications to all webhook URLs in the group
     let sentCount = 0;
@@ -143,6 +143,13 @@ export async function sendAlert(
     // Mark alert status based on results
     if (sentCount > 0) {
       await markAlertSent(alert.id);
+
+      // Update service with last alert information
+      await updateService(serviceId, {
+        lastAlertType: type,
+        lastAlertSentAt: new Date(),
+      });
+
       console.log(
         `[Alert] Sent ${type} alert for ${serviceName} to ${sentCount}/${group.webhookUrls.length} webhooks in group "${group.name}"`
       );

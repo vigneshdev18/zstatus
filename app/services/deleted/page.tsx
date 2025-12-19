@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { HiGlobeAlt, HiDatabase, HiSearch, HiRefresh } from "react-icons/hi";
 import Loading from "@/app/components/Loading";
+import { useApiQuery } from "@/lib/hooks/useApiQuery";
+import { useQueryClient } from "@tanstack/react-query";
 
 type ServiceType = "api" | "mongodb" | "elasticsearch";
 
@@ -25,34 +27,20 @@ interface DeletedService {
 
 export default function DeletedServicesPage() {
   const router = useRouter();
-  const [services, setServices] = useState<DeletedService[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [restoring, setRestoring] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [error, setError] = useState("");
+  const [restoringId, setRestoringId] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchDeletedServices();
-  }, []);
+  // Fetch deleted services using useApiQuery
+  const { data: deletedServicesData, isLoading } = useApiQuery<{
+    services: DeletedService[];
+  }>("/api/services/deleted");
 
-  const fetchDeletedServices = async () => {
-    try {
-      const response = await fetch("/api/services/deleted");
-      if (response.ok) {
-        const data = await response.json();
-        setServices(data.services);
-      } else {
-        setError("Failed to fetch deleted services");
-      }
-    } catch (err) {
-      setError("An error occurred while fetching deleted services");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const services = deletedServicesData?.services || [];
 
   const handleRestore = async (id: string) => {
-    setRestoring(id);
     setError("");
+    setRestoringId(id);
 
     try {
       const response = await fetch(`/api/services/${id}/restore`, {
@@ -60,9 +48,13 @@ export default function DeletedServicesPage() {
       });
 
       if (response.ok) {
-        // Remove from deleted list
-        setServices(services.filter((s) => s.id !== id));
-        // Optionally redirect or show success message
+        // Invalidate both deleted services and active services caches
+        await queryClient.invalidateQueries({
+          queryKey: ["api", "/api/services/deleted"],
+        });
+        await queryClient.invalidateQueries({
+          queryKey: ["api", "/api/services"],
+        });
       } else {
         const data = await response.json();
         setError(data.error || "Failed to restore service");
@@ -70,7 +62,7 @@ export default function DeletedServicesPage() {
     } catch (err) {
       setError("An error occurred while restoring the service");
     } finally {
-      setRestoring(null);
+      setRestoringId(null);
     }
   };
 
@@ -85,7 +77,7 @@ export default function DeletedServicesPage() {
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return <Loading message="Loading deleted services..." />;
   }
 
@@ -176,15 +168,17 @@ export default function DeletedServicesPage() {
               {/* Actions */}
               <button
                 onClick={() => handleRestore(service.id)}
-                disabled={restoring === service.id}
+                disabled={restoringId === service.id}
                 className="w-full px-4 py-2 bg-gradient-primary rounded-xl text-white font-medium hover:scale-105 transition-smooth shadow-gradient disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 <HiRefresh
                   className={`w-4 h-4 ${
-                    restoring === service.id ? "animate-spin" : ""
+                    restoringId === service.id ? "animate-spin" : ""
                   }`}
                 />
-                {restoring === service.id ? "Restoring..." : "Restore Service"}
+                {restoringId === service.id
+                  ? "Restoring..."
+                  : "Restore Service"}
               </button>
             </div>
           ))}

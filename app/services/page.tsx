@@ -1,16 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import {
   HiChevronDown,
   HiChevronRight,
   HiFolder,
   HiFolderOpen,
+  HiPencil,
 } from "react-icons/hi";
 import Loading from "@/app/components/Loading";
+import PageHeader from "../components/PageHeader";
+import apiClient from "@/lib/api/client";
+import ServiceCard from "../components/ServiceCard";
+import Button from "@/app/components/Button/Button";
+import { useQueryClient } from "@tanstack/react-query";
+import { useApiQuery } from "@/lib/hooks/useApiQuery";
 
-interface Service {
+interface ServiceListType {
   id: string;
   name: string;
   serviceType: string;
@@ -20,6 +27,14 @@ interface Service {
   avgResponseTime?: number;
   alertsEnabled?: boolean;
   throughput?: number;
+  responseTimeWarningMs?: number;
+  responseTimeWarningAttempts?: number;
+  responseTimeCriticalMs?: number;
+  responseTimeCriticalAttempts?: number;
+  consecutiveSlowWarning?: number;
+  consecutiveSlowCritical?: number;
+  lastAlertType?: string;
+  lastAlertSentAt?: string;
 }
 
 interface Group {
@@ -30,41 +45,29 @@ interface Group {
 
 interface GroupedServices {
   group: Group | null;
-  services: Service[];
+  services: ServiceListType[];
 }
 
 export default function ServicesPage() {
-  const [services, setServices] = useState<Service[]>([]);
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [togglingAlerts, setTogglingAlerts] = useState<Set<string>>(new Set());
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
     new Set(["other"])
   );
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  // Fetch services using useApiQuery
+  const { data: servicesData, isLoading: servicesLoading } = useApiQuery<{
+    services: ServiceListType[];
+  }>("/api/services");
 
-  const fetchData = async () => {
-    try {
-      const [servicesRes, groupsRes] = await Promise.all([
-        fetch("/api/services"),
-        fetch("/api/groups"),
-      ]);
+  // Fetch groups using useApiQuery
+  const { data: groupsData, isLoading: groupsLoading } = useApiQuery<{
+    groups: Group[];
+  }>("/api/groups");
 
-      if (servicesRes.ok && groupsRes.ok) {
-        const servicesData = await servicesRes.json();
-        const groupsData = await groupsRes.json();
-        setServices(servicesData.services || []);
-        setGroups(groupsData.groups || []);
-      }
-    } catch (error) {
-      console.error("Failed to fetch data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const services = servicesData?.services || [];
+  const groups = groupsData?.groups || [];
+  const loading = servicesLoading || groupsLoading;
 
   const toggleFolder = (folderId: string) => {
     setExpandedFolders((prev) => {
@@ -88,38 +91,46 @@ export default function ServicesPage() {
   };
 
   const toggleAlerts = async (serviceId: string, currentValue: boolean) => {
-    // Optimistic update
-    setServices((prev) =>
-      prev.map((s) =>
-        s.id === serviceId ? { ...s, alertsEnabled: !currentValue } : s
-      )
-    );
+    const queryKey = ["api", "/api/services"];
+
+    // Check if we have cached data
+    const cachedData = queryClient.getQueryData<{
+      services: ServiceListType[];
+    }>(queryKey);
 
     setTogglingAlerts((prev) => new Set(prev).add(serviceId));
 
     try {
-      const response = await fetch(`/api/services/${serviceId}/alerts`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ alertsEnabled: !currentValue }),
-      });
-
-      if (!response.ok) {
-        // Revert on error
-        setServices((prev) =>
-          prev.map((s) =>
-            s.id === serviceId ? { ...s, alertsEnabled: currentValue } : s
-          )
+      if (cachedData) {
+        // Optimistically update the cache
+        queryClient.setQueryData<{ services: ServiceListType[] }>(
+          queryKey,
+          (old) => {
+            if (!old) return old;
+            return {
+              ...old,
+              services: old.services.map((s) =>
+                s.id === serviceId ? { ...s, alertsEnabled: !currentValue } : s
+              ),
+            };
+          }
         );
       }
+
+      // Make the API call
+      await apiClient.patch(`/api/services/${serviceId}/alerts`, {
+        alertsEnabled: !currentValue,
+      });
+
+      // Invalidate and refetch to ensure consistency
+      await queryClient.invalidateQueries({ queryKey });
     } catch (error) {
       console.error("Failed to toggle alerts:", error);
-      // Revert on error
-      setServices((prev) =>
-        prev.map((s) =>
-          s.id === serviceId ? { ...s, alertsEnabled: currentValue } : s
-        )
-      );
+
+      // Revert optimistic update in cache
+      if (cachedData) {
+        queryClient.setQueryData(queryKey, cachedData);
+      }
     } finally {
       setTogglingAlerts((prev) => {
         const newSet = new Set(prev);
@@ -160,10 +171,11 @@ export default function ServicesPage() {
     <div className="max-w-7xl mx-auto space-y-8">
       {/* Page Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-bold gradient-text mb-2">Services</h1>
-          <p className="text-gray-400">Manage and monitor your services</p>
-        </div>
+        <PageHeader
+          title="Services"
+          subtitle="Manage and monitor your services"
+          showBack={false}
+        />
         <div className="flex items-center gap-3">
           <Link
             href="/services/deleted"
@@ -204,18 +216,12 @@ export default function ServicesPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-white">Service Groups</h2>
         <div className="flex gap-2">
-          <button
-            onClick={expandAll}
-            className="px-4 py-2 glass rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/10 transition-smooth"
-          >
+          <Button onClick={expandAll} variant="ghost" size="sm">
             Expand All
-          </button>
-          <button
-            onClick={collapseAll}
-            className="px-4 py-2 glass rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/10 transition-smooth"
-          >
+          </Button>
+          <Button onClick={collapseAll} variant="ghost" size="sm">
             Collapse All
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -273,116 +279,14 @@ export default function ServicesPage() {
                 {/* Services List */}
                 {isExpanded && (
                   <div className="px-6 pb-4 space-y-2">
-                    {grouped.services.map((service) => {
-                      const isToggling = togglingAlerts.has(service.id);
-                      const alertsEnabled =
-                        service.alertsEnabled !== undefined
-                          ? service.alertsEnabled
-                          : true;
-
-                      return (
-                        <div
-                          key={service.id}
-                          className="p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-smooth group"
-                        >
-                          <div className="flex items-center justify-between">
-                            <Link
-                              href={`/services/${service.id}`}
-                              className="flex items-center gap-4 flex-1"
-                            >
-                              {/* Status Indicator */}
-                              <div className="relative">
-                                <div
-                                  className={`w-3 h-3 rounded-full ${
-                                    service.lastStatus === "UP"
-                                      ? "bg-[var(--color-status-up)]"
-                                      : service.lastStatus === "DOWN"
-                                      ? "bg-[var(--color-status-down)]"
-                                      : "bg-gray-500"
-                                  }`}
-                                />
-                                {service.lastStatus === "UP" && (
-                                  <div className="absolute inset-0 w-3 h-3 bg-[var(--color-status-up)] rounded-full status-pulse" />
-                                )}
-                              </div>
-
-                              {/* Service Info */}
-                              <div className="flex-1">
-                                <h3 className="text-white font-medium group-hover:gradient-text transition-smooth">
-                                  {service.name}
-                                </h3>
-                                <p className="text-sm text-gray-400">
-                                  {service.serviceType?.toUpperCase() ||
-                                    "UNKNOWN"}
-                                </p>
-                              </div>
-                            </Link>
-
-                            {/* Alert Toggle and Metrics */}
-                            <div className="flex items-center gap-6">
-                              {/* Alert Toggle */}
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-gray-400">
-                                  Alerts
-                                </span>
-                                <button
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    toggleAlerts(service.id, alertsEnabled);
-                                  }}
-                                  disabled={isToggling}
-                                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                                    alertsEnabled
-                                      ? "bg-purple-500"
-                                      : "bg-gray-600"
-                                  } ${
-                                    isToggling ? "opacity-50 cursor-wait" : ""
-                                  }`}
-                                  title={
-                                    alertsEnabled
-                                      ? "Alerts enabled"
-                                      : "Alerts disabled"
-                                  }
-                                >
-                                  <span
-                                    className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-                                      alertsEnabled
-                                        ? "translate-x-5"
-                                        : "translate-x-1"
-                                    }`}
-                                  />
-                                </button>
-                              </div>
-
-                              {/* Metrics */}
-                              <div className="flex items-center gap-6 text-sm">
-                                {service.avgResponseTime !== undefined && (
-                                  <div>
-                                    <p className="text-gray-400">
-                                      Response Time
-                                    </p>
-                                    <p className="text-white font-medium">
-                                      {service.avgResponseTime.toFixed(0)}ms
-                                    </p>
-                                  </div>
-                                )}
-                                {service.lastCheckedAt && (
-                                  <div>
-                                    <p className="text-gray-400">Last Check</p>
-                                    <p className="text-white font-medium">
-                                      {new Date(
-                                        service.lastCheckedAt
-                                      ).toLocaleTimeString()}
-                                    </p>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
+                    {grouped.services.map((service) => (
+                      <ServiceCard
+                        key={service.id}
+                        service={service}
+                        isToggling={togglingAlerts.has(service.id)}
+                        toggleAlerts={toggleAlerts}
+                      />
+                    ))}
                   </div>
                 )}
               </div>

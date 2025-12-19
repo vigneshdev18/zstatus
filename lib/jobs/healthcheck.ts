@@ -1,9 +1,104 @@
-import { getAllServices } from "@/lib/db/services";
+import { getAllServices, updateService } from "@/lib/db/services";
 import { createHealthCheck } from "@/lib/db/healthchecks";
 import { runHealthCheck } from "@/lib/healthcheck/runner";
 import { detectIncident } from "@/lib/incidents/detector";
 import { updateServiceStatus } from "@/lib/db/service-status";
 import { getSettings } from "@/lib/db/settings";
+import { sendAlert } from "@/lib/alerts/service";
+import { Service } from "@/lib/types/service";
+
+/**
+ * Check if response time exceeds thresholds and trigger alerts if needed
+ */
+async function checkResponseTimeThresholds(
+  service: Service,
+  responseTime: number,
+  timestamp: Date
+) {
+  const warningMs = service.responseTimeWarningMs ?? 3000;
+  const warningAttempts = service.responseTimeWarningAttempts ?? 3;
+  const criticalMs = service.responseTimeCriticalMs ?? 5000;
+  const criticalAttempts = service.responseTimeCriticalAttempts ?? 3;
+
+  let consecutiveSlowWarning = service.consecutiveSlowWarning ?? 0;
+  let consecutiveSlowCritical = service.consecutiveSlowCritical ?? 0;
+
+  // Check critical threshold first (higher priority)
+  if (responseTime >= criticalMs) {
+    consecutiveSlowCritical++;
+    consecutiveSlowWarning = 0; // Reset warning counter
+
+    console.log(
+      `[ResponseTime] ${service.name}: CRITICAL threshold breach (${responseTime}ms >= ${criticalMs}ms) - ${consecutiveSlowCritical}/${criticalAttempts} attempts`
+    );
+
+    if (consecutiveSlowCritical >= criticalAttempts) {
+      // Trigger CRITICAL alert
+      await sendAlert(
+        service.id,
+        service.name,
+        "RESPONSE_TIME",
+        "CRITICAL",
+        `Response Time Critical: ${service.name}`,
+        `🔴 RESPONSE TIME CRITICAL\n` +
+          `Response time exceeded critical threshold\n` +
+          `Current: ${responseTime}ms | Threshold: ${criticalMs}ms\n` +
+          `Consecutive slow responses: ${consecutiveSlowCritical}/${criticalAttempts}`
+      );
+
+      console.log(
+        `[ResponseTime] ${service.name}: CRITICAL alert triggered after ${consecutiveSlowCritical} consecutive attempts`
+      );
+
+      // Reset counter after alerting
+      consecutiveSlowCritical = 0;
+    }
+  } else if (responseTime >= warningMs) {
+    consecutiveSlowWarning++;
+    consecutiveSlowCritical = 0; // Reset critical counter
+
+    console.log(
+      `[ResponseTime] ${service.name}: WARNING threshold breach (${responseTime}ms >= ${warningMs}ms) - ${consecutiveSlowWarning}/${warningAttempts} attempts`
+    );
+
+    if (consecutiveSlowWarning >= warningAttempts) {
+      // Trigger WARNING alert
+      await sendAlert(
+        service.id,
+        service.name,
+        "RESPONSE_TIME",
+        "WARNING",
+        `Response Time Warning: ${service.name}`,
+        `⚠️ RESPONSE TIME WARNING\n` +
+          `Response time exceeded warning threshold\n` +
+          `Current: ${responseTime}ms | Threshold: ${warningMs}ms\n` +
+          `Consecutive slow responses: ${consecutiveSlowWarning}/${warningAttempts}`
+      );
+
+      console.log(
+        `[ResponseTime] ${service.name}: WARNING alert triggered after ${consecutiveSlowWarning} consecutive attempts`
+      );
+
+      // Reset counter after alerting
+      consecutiveSlowWarning = 0;
+    }
+  } else {
+    // Response time is good - reset both counters
+    if (consecutiveSlowWarning > 0 || consecutiveSlowCritical > 0) {
+      console.log(
+        `[ResponseTime] ${service.name}: Response time normal (${responseTime}ms) - resetting counters`
+      );
+    }
+    consecutiveSlowWarning = 0;
+    consecutiveSlowCritical = 0;
+  }
+
+  // Update service with new consecutive counts
+  await updateService(service.id, {
+    consecutiveSlowWarning,
+    consecutiveSlowCritical,
+  });
+}
 
 // Health check job - runs for all services
 export async function healthCheckJob() {
@@ -70,6 +165,15 @@ export async function healthCheckJob() {
           result.statusCode,
           result.errorMessage
         );
+
+        // Check response time thresholds (only for UP status)
+        if (result.status === "UP") {
+          await checkResponseTimeThresholds(
+            service,
+            result.responseTime,
+            timestamp
+          );
+        }
 
         // Detect incidents based on state transitions
         await detectIncident(
