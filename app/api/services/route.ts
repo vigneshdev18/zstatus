@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createService, getAllServicesWithMetrics } from "@/lib/db/services";
 import { CreateServiceInput } from "@/lib/types/service";
+import { requireAdmin } from "@/lib/auth/permissions";
 
 // GET /api/services - List all services
 export async function GET() {
@@ -44,9 +45,12 @@ export async function GET() {
   }
 }
 
-// POST /api/services - Create a new service
+// POST /api/services - Create a new service (Admin only)
 export async function POST(request: NextRequest) {
   try {
+    // Check admin permission
+    await requireAdmin(request);
+
     const body = await request.json();
 
     // Validate required fields
@@ -70,7 +74,14 @@ export async function POST(request: NextRequest) {
       requestBody: body.requestBody,
       mongoConnectionString: body.mongoConnectionString,
       mongoDatabase: body.mongoDatabase,
+      mongoPipelines: body.mongoPipelines,
       esConnectionString: body.esConnectionString,
+
+      // Redis fields
+      redisConnectionString: body.redisConnectionString,
+      redisPassword: body.redisPassword,
+      redisDatabase: body.redisDatabase,
+      redisOperations: body.redisOperations,
 
       // Metadata
       groupId: body.groupId,

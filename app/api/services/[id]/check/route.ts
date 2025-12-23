@@ -32,9 +32,16 @@ export async function POST(
       case "mongodb":
         config.mongoConnectionString = service.mongoConnectionString;
         config.mongoDatabase = service.mongoDatabase;
+        config.mongoPipelines = service.mongoPipelines;
         break;
       case "elasticsearch":
         config.esConnectionString = service.esConnectionString;
+        break;
+      case "redis":
+        config.redisConnectionString = service.redisConnectionString;
+        config.redisPassword = service.redisPassword;
+        config.redisDatabase = service.redisDatabase;
+        config.redisOperations = service.redisOperations;
         break;
     }
 

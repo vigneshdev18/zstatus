@@ -4,12 +4,18 @@ import {
   UseMutationResult,
   useQueryClient,
 } from "@tanstack/react-query";
+import { ApiResponseMap, ApiResponse } from "@/lib/types/api.types";
 
 type HttpMethod = "POST" | "PUT" | "PATCH" | "DELETE";
 
-interface ApiMutationOptions<TData, TVariables> {
-  url: string;
-  method: HttpMethod;
+interface ApiMutationOptions<
+  TUrl extends keyof ApiResponseMap,
+  TMethod extends HttpMethod & keyof ApiResponseMap[TUrl],
+  TData = ApiResponse<TUrl, TMethod>,
+  TVariables = unknown
+> {
+  url: TUrl | (string & {}); // Allow string for dynamic URLs
+  method: TMethod;
   options?: Omit<
     UseMutationOptions<TData, Error, TVariables, unknown>,
     "mutationFn"
@@ -22,46 +28,49 @@ interface ApiMutationOptions<TData, TVariables> {
 }
 
 /**
- * Custom hook that wraps useMutation for API calls
+ * Custom hook that wraps useMutation for API calls with automatic type inference
  *
- * @template TData - The type of data returned by the API
- * @template TVariables - The type of variables passed to the mutation
+ * @template TUrl - The API endpoint URL (must be a key in ApiResponseMap)
+ * @template TMethod - The HTTP method (POST, PUT, PATCH, DELETE)
  * @param config - Configuration object containing url, method, and options
- * @returns UseMutationResult with mutation functions and state
+ * @returns UseMutationResult with mutation functions and state, automatically typed
  *
  * @example
  * ```tsx
- * // Basic usage
- * const createService = useApiMutation<Service, CreateServiceInput>({
+ * // Automatic type inference - response type is inferred from URL and method!
+ * const createService = useApiMutation({
  *   url: '/api/services',
  *   method: 'POST',
  *   invalidateQueries: [['api', '/api/services']],
  * });
- *
- * // Usage in component
- * const handleCreate = () => {
- *   createService.mutate({ name: 'New Service', url: 'https://example.com' });
- * };
+ * // createService.mutate expects Service data
+ * // createService.data is typed as Service
  *
  * // With options
- * const updateService = useApiMutation<Service, UpdateServiceInput>({
- *   url: `/api/services/${id}`,
+ * const updateService = useApiMutation({
+ *   url: `/api/services/${id}` as '/api/services/[id]',
  *   method: 'PATCH',
  *   invalidateQueries: [['api', '/api/services'], ['api', `/api/services/${id}`]],
  *   options: {
  *     onSuccess: (data) => {
  *       console.log('Service updated:', data);
+ *       // data is automatically typed as Service
  *     },
  *   },
  * });
  * ```
  */
-export function useApiMutation<TData = unknown, TVariables = unknown>({
+export function useApiMutation<
+  TUrl extends keyof ApiResponseMap,
+  TMethod extends HttpMethod & keyof ApiResponseMap[TUrl],
+  TData = ApiResponse<TUrl, TMethod>,
+  TVariables = TData
+>({
   url,
   method,
   options,
   invalidateQueries = [],
-}: ApiMutationOptions<TData, TVariables>): UseMutationResult<
+}: ApiMutationOptions<TUrl, TMethod, TData, TVariables>): UseMutationResult<
   TData,
   Error,
   TVariables
@@ -72,7 +81,7 @@ export function useApiMutation<TData = unknown, TVariables = unknown>({
 
   return useMutation<TData, Error, TVariables>({
     mutationFn: async (variables: TVariables) => {
-      const response = await fetch(url, {
+      const response = await fetch(url as string, {
         method,
         headers: {
           "Content-Type": "application/json",
@@ -92,14 +101,14 @@ export function useApiMutation<TData = unknown, TVariables = unknown>({
       return response.json();
     },
     ...options,
-    onSuccess: (data, variables, onMutateResult, mutationContext) => {
+    onSuccess: (data, variables, context, mutation) => {
       // Invalidate specified queries
       invalidateQueries.forEach((queryKey) => {
         queryClient.invalidateQueries({ queryKey: queryKey });
       });
 
       // Call user-provided onSuccess if it exists
-      userOnSuccess?.(data, variables, onMutateResult, mutationContext);
+      userOnSuccess?.(data, variables, context, mutation);
     },
   });
 }

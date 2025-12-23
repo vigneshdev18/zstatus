@@ -98,14 +98,15 @@ const ServiceCard = ({
 
             {/* Metrics */}
             <div className="flex items-center gap-6 text-sm">
-              {service.avgResponseTime !== undefined && (
-                <div>
-                  <p className="text-gray-400">Response Time</p>
-                  <p className="text-white font-medium">
-                    {service.avgResponseTime.toFixed(0)}ms
-                  </p>
-                </div>
-              )}
+              {service.avgResponseTime !== undefined &&
+                service.avgResponseTime !== null && (
+                  <div>
+                    <p className="text-gray-400">Response Time</p>
+                    <p className="text-white font-medium">
+                      {service.avgResponseTime.toFixed(0)}ms
+                    </p>
+                  </div>
+                )}
               {service.lastCheckedAt && (
                 <div>
                   <p className="text-gray-400">Last Check</p>

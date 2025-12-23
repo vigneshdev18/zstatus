@@ -8,6 +8,9 @@ import {
 } from "@/app/components/TimeRangeDropdown";
 import Loading from "@/app/components/Loading";
 import { useApiQuery } from "@/lib/hooks/useApiQuery";
+import DetailCard from "@/app/components/DetailsCard";
+import { Grid, GridItem } from "../components/Grid";
+import PageHeader from "../components/PageHeader";
 
 // Import types from AnalyticsWithFilter to ensure compatibility
 interface HealthCheck {
@@ -38,9 +41,8 @@ export default function AnalyticsPage() {
   });
 
   // Fetch services using useApiQuery
-  const { data: servicesResponse, isLoading: servicesLoading } = useApiQuery<{
-    services: any[];
-  }>("/api/services");
+  const { data: servicesResponse, isLoading: servicesLoading } =
+    useApiQuery("/api/services");
 
   const services = servicesResponse?.services || [];
 
@@ -121,14 +123,12 @@ export default function AnalyticsPage() {
   return (
     <div className="max-w-7xl mx-auto space-y-8">
       {/* Header with Date Range Picker */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-4xl font-bold gradient-text mb-2">Analytics</h1>
-          <p className="text-gray-400">
-            Response time trends and service health metrics
-          </p>
-        </div>
-
+      <div className="flex items-center justify-between">
+        <PageHeader
+          title="Analytics"
+          subtitle="Response time trends and service health metrics"
+          showBack={false}
+        />
         {/* Time Range Dropdown */}
         <TimeRangeDropdown
           value={timeRange}
@@ -137,21 +137,17 @@ export default function AnalyticsPage() {
         />
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="glass rounded-xl p-4">
-          <p className="text-sm text-gray-400 mb-1">Total Services</p>
-          <p className="text-2xl font-bold text-white">{services.length}</p>
-        </div>
-        <div className="glass rounded-xl p-4">
-          <p className="text-sm text-gray-400 mb-1">Data Points</p>
-          <p className="text-2xl font-bold text-white">{totalDataPoints}</p>
-        </div>
-        <div className="glass rounded-xl p-4">
-          <p className="text-sm text-gray-400 mb-1">Time Range</p>
-          <p className="text-2xl font-bold text-white">{formatTimeRange()}</p>
-        </div>
-      </div>
+      <Grid cols={4}>
+        <GridItem>
+          <DetailCard title="Total Services" value={services.length} />
+        </GridItem>
+        <GridItem>
+          <DetailCard title="Data Points" value={totalDataPoints} />
+        </GridItem>
+        <GridItem colSpan={2}>
+          <DetailCard title="Time Range" value={formatTimeRange()} />
+        </GridItem>
+      </Grid>
 
       {/* Chart with Service Filter */}
       <div className="glass rounded-2xl p-6">

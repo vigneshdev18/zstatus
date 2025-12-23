@@ -34,18 +34,28 @@ interface AnalyticsChartProps {
   serviceData: ServiceData[];
 }
 
-// Color palette for different services
+// Color palette for different services - 20 vibrant, distinct colors
 const SERVICE_COLORS = [
-  "#667eea",
-  "#0ba360",
-  "#f2994a",
-  "#eb3349",
-  "#3cba92",
-  "#f45c43",
-  "#f2c94c",
-  "#764ba2",
-  "#0f9d58",
-  "#db4437",
+  "#667eea", // Purple-blue
+  "#0ba360", // Green
+  "#f2994a", // Orange
+  "#eb3349", // Red
+  "#3cba92", // Teal
+  "#f45c43", // Coral
+  "#f2c94c", // Yellow
+  "#764ba2", // Purple
+  "#0f9d58", // Forest green
+  "#db4437", // Crimson
+  "#4285f4", // Blue
+  "#ea4335", // Bright red
+  "#fbbc04", // Gold
+  "#34a853", // Lime green
+  "#ff6d00", // Deep orange
+  "#ab47bc", // Magenta
+  "#00acc1", // Cyan
+  "#7cb342", // Light green
+  "#e91e63", // Pink
+  "#5e35b1", // Deep purple
 ];
 
 const DOWN_COLOR = "#ef4444"; // Red for down status

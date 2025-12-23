@@ -55,7 +55,8 @@ const InputField = forwardRef<
     };
 
     const baseClassName = cn(
-      "w-full px-4 py-3 bg-white/5 border rounded-xl text-white placeholder-gray-500 transition-smooth focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent",
+      "w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500",
+      // "w-full px-4 py-3 bg-white/5 border rounded-xl text-white placeholder-gray-500 transition-smooth focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent",
       className,
       error ? "border-red-500" : "border-white/10",
       props.disabled && "cursor-not-allowed opacity-50"

@@ -146,9 +146,16 @@ export async function healthCheckJob() {
           case "mongodb":
             config.mongoConnectionString = service.mongoConnectionString;
             config.mongoDatabase = service.mongoDatabase;
+            config.mongoPipelines = service.mongoPipelines;
             break;
           case "elasticsearch":
             config.esConnectionString = service.esConnectionString;
+            break;
+          case "redis":
+            config.redisConnectionString = service.redisConnectionString;
+            config.redisPassword = service.redisPassword;
+            config.redisDatabase = service.redisDatabase;
+            config.redisOperations = service.redisOperations;
             break;
         }
 
@@ -172,6 +179,15 @@ export async function healthCheckJob() {
             service,
             result.responseTime,
             timestamp
+          );
+        }
+
+        // Log status transition for debugging
+        if (service.lastStatus !== result.status) {
+          console.log(
+            `[HealthCheck] ${service.name}: ${service.lastStatus || "null"} → ${
+              result.status
+            }`
           );
         }
 

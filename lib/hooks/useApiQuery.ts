@@ -3,35 +3,45 @@ import {
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
+import { ApiResponseMap, GetResponse } from "@/lib/types/api.types";
 
 /**
- * Custom hook that wraps useQuery for API calls
+ * Custom hook that wraps useQuery for API calls with automatic type inference
  *
- * @template TData - The type of data returned by the API
+ * @template TUrl - The API endpoint URL (must be a key in ApiResponseMap)
  * @param url - The API endpoint URL to fetch from
  * @param options - Additional useQuery options (excluding queryKey and queryFn)
- * @returns UseQueryResult with the fetched data
+ * @returns UseQueryResult with the fetched data, automatically typed based on the URL
  *
  * @example
  * ```tsx
- * // Basic usage
- * const { data, isLoading, error } = useApiQuery<Service[]>('/api/services');
+ * // Automatic type inference - no need to specify generic type!
+ * const { data } = useApiQuery('/api/services');
+ * // data is automatically typed as { services: Service[] }
  *
  * // With options
- * const { data } = useApiQuery<Settings>('/api/settings', {
+ * const { data } = useApiQuery('/api/settings', {
  *   enabled: isAuthenticated,
  *   refetchInterval: 5000,
  * });
+ * // data is automatically typed as { settings: Settings }
+ *
+ * // For dynamic URLs (with path parameters), use the base pattern
+ * const { data } = useApiQuery(`/api/services/${id}` as '/api/services/[id]');
+ * // data is automatically typed as { service: Service }
  * ```
  */
-export function useApiQuery<TData = unknown>(
-  url: string,
-  options?: Omit<UseQueryOptions<TData, Error, TData>, "queryKey" | "queryFn">
-): UseQueryResult<TData, Error> {
-  return useQuery<TData, Error>({
+export function useApiQuery<TUrl extends keyof ApiResponseMap>(
+  url: TUrl | (string & {}), // Allow string for dynamic URLs
+  options?: Omit<
+    UseQueryOptions<GetResponse<TUrl>, Error, GetResponse<TUrl>>,
+    "queryKey" | "queryFn"
+  >
+): UseQueryResult<GetResponse<TUrl>, Error> {
+  return useQuery<GetResponse<TUrl>, Error>({
     queryKey: ["api", url],
     queryFn: async () => {
-      const response = await fetch(url);
+      const response = await fetch(url as string);
 
       if (!response.ok) {
         const errorText = await response.text();

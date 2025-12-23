@@ -4,6 +4,9 @@ import { getAllIncidents } from "@/lib/db/incidents";
 import { Grid, GridItem } from "@/app/components/Grid";
 import RefreshServiceButton from "@/app/components/RefreshServiceButton";
 import { HiServer, HiCheckCircle, HiExclamation } from "react-icons/hi";
+import PageHeader from "../components/PageHeader";
+import ViewAllButton from "../components/Button/ViewAllButton";
+import DetailCard from "../components/DetailsCard";
 
 export default async function OverviewPage() {
   const services = await getAllServices();
@@ -15,81 +18,51 @@ export default async function OverviewPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">
-      {/* Page Header */}
-      <div>
-        <h1 className="text-4xl font-bold gradient-text mb-2">Overview</h1>
-        <p className="text-gray-400">Monitor your services at a glance</p>
-      </div>
+      <PageHeader
+        title="Overview"
+        subtitle="Monitor your services at a glance"
+        showBack={false}
+      />
 
-      {/* Stats Grid */}
       <Grid cols={3} gap={6}>
-        {/* Total Services */}
         <GridItem>
-          <div className="glass rounded-2xl p-6 transition-smooth hover:scale-105 hover:shadow-gradient">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-400 mb-1">Total Services</p>
-                <p className="text-4xl font-bold text-white">
-                  {services.length}
-                </p>
-              </div>
-              <div className="w-16 h-16 bg-gradient-primary rounded-xl flex items-center justify-center">
-                <HiServer className="w-8 h-8 text-white" />
-              </div>
-            </div>
-          </div>
+          <DetailCard
+            title="Total Services"
+            value={services.length}
+            icon={<HiServer className="w-8 h-8 text-white" />}
+            iconContainerClass="bg-gradient-primary"
+          />
         </GridItem>
-
-        {/* Healthy Services */}
         <GridItem>
-          <div className="glass rounded-2xl p-6 transition-smooth hover:scale-105 hover:shadow-gradient">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-400 mb-1">Healthy</p>
-                <p className="text-4xl font-bold text-white">
-                  {healthyServices}
-                </p>
-              </div>
-              <div className="w-16 h-16 bg-gradient-success rounded-xl flex items-center justify-center relative">
-                <div className="absolute inset-0 bg-green-500/20 rounded-xl status-pulse"></div>
-                <HiCheckCircle className="w-8 h-8 text-white" />
-              </div>
-            </div>
-          </div>
+          <DetailCard
+            title="Healthy Services"
+            value={healthyServices}
+            icon={<HiCheckCircle className="w-8 h-8 text-white" />}
+            iconContainerClass="bg-gradient-success"
+          />
         </GridItem>
-
-        {/* Down Services */}
         <GridItem>
-          <div className="glass rounded-2xl p-6 transition-smooth hover:scale-105 hover:shadow-gradient">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-400 mb-1">Down</p>
-                <p className="text-4xl font-bold text-white">{downServices}</p>
-              </div>
-              <div className="w-16 h-16 bg-gradient-danger rounded-xl flex items-center justify-center">
-                <HiExclamation className="w-8 h-8 text-white" />
-              </div>
-            </div>
-          </div>
+          <DetailCard
+            title="Down Services"
+            value={downServices}
+            icon={<HiExclamation className="w-8 h-8 text-white" />}
+            iconContainerClass="bg-gradient-danger"
+          />
         </GridItem>
       </Grid>
 
       {/* Services & Incidents Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Services List */}
+
         <div className="glass rounded-2xl p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-white">Services</h2>
-            <Link
-              href="/services"
-              className="text-sm text-purple-400 hover:text-purple-300 transition-smooth"
-            >
-              View all →
-            </Link>
+            <ViewAllButton href="/services" />
           </div>
 
-          <div className="space-y-3">
-            {services.slice(0, 5).map((service) => (
+          <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
+            {services.map((service) => (
               <Link
                 key={service.id}
                 href={`/services/${service.id}`}
@@ -139,12 +112,7 @@ export default async function OverviewPage() {
         <div className="glass rounded-2xl p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-white">Active Incidents</h2>
-            <Link
-              href="/incidents"
-              className="text-sm text-purple-400 hover:text-purple-300 transition-smooth"
-            >
-              View all →
-            </Link>
+            <ViewAllButton href="/incidents" />
           </div>
 
           {activeIncidents.length === 0 ? (

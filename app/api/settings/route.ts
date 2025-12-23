@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSettings, updateSettings } from "@/lib/db/settings";
+import { requireAdmin } from "@/lib/auth/permissions";
 
 // GET /api/settings - Get global settings
 export async function GET() {
@@ -15,9 +16,12 @@ export async function GET() {
   }
 }
 
-// PATCH /api/settings - Update global settings
+// PATCH /api/settings - Update global settings (Admin only)
 export async function PATCH(request: NextRequest) {
   try {
+    // Check admin permission
+    await requireAdmin(request);
+
     const body = await request.json();
 
     // Validate globalAlertsEnabled is a boolean if provided

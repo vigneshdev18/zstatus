@@ -1,11 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, Controller, FormProvider } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-import { HiGlobeAlt, HiDatabase, HiSearch } from "react-icons/hi";
+import {
+  HiGlobeAlt,
+  HiDatabase,
+  HiSearch,
+  HiServer,
+  HiPlus,
+  HiTrash,
+} from "react-icons/hi";
 import Select, { SelectOption } from "@/app/components/Select";
 import FormInput from "@/app/components/FormInput";
 import PageHeader from "@/app/components/PageHeader";
@@ -16,7 +23,7 @@ import Switch from "@/app/components/Switch/Switch";
 import { useApiQuery } from "@/lib/hooks/useApiQuery";
 import { useApiMutation } from "@/lib/hooks/useApiMutation";
 
-type ServiceType = "api" | "mongodb" | "elasticsearch";
+type ServiceType = "api" | "mongodb" | "elasticsearch" | "redis";
 
 interface Group {
   id: string;
@@ -37,6 +44,10 @@ interface Service {
   mongoConnectionString?: string;
   mongoDatabase?: string;
   esConnectionString?: string;
+  redisConnectionString?: string;
+  redisPassword?: string;
+  redisDatabase?: number;
+  redisOperations?: Array<{ command: string; args: string[] }>;
   groupId?: string;
   alertsEnabled?: boolean;
   description?: string;
@@ -71,7 +82,7 @@ const createServiceSchema = (serviceType: ServiceType) => {
       .min(2, "Name must be at least 2 characters"),
     serviceType: yup
       .string()
-      .oneOf(["api", "mongodb", "elasticsearch"])
+      .oneOf(["api", "mongodb", "elasticsearch", "redis"])
       .required(),
     timeout: yup
       .number()
@@ -133,6 +144,15 @@ const createServiceSchema = (serviceType: ServiceType) => {
         .url("Must be a valid URL")
         .required("Elasticsearch URL is required"),
     });
+  } else if (serviceType === "redis") {
+    return yup.object({
+      ...baseSchema,
+      redisConnectionString: yup
+        .string()
+        .required("Redis connection string is required"),
+      redisPassword: yup.string().optional(),
+      redisDatabase: yup.number().min(0).max(15).optional(),
+    });
   }
 
   return yup.object(baseSchema);
@@ -156,6 +176,10 @@ type ServiceFormData = {
   mongoConnectionString?: string;
   mongoDatabase?: string;
   esConnectionString?: string;
+  redisConnectionString?: string;
+  redisPassword?: string;
+  redisDatabase?: number;
+  redisOperations?: string; // JSON string of operations array
   responseTimeWarningMs?: number;
   responseTimeWarningAttempts?: number;
   responseTimeCriticalMs?: number;
@@ -181,6 +205,12 @@ const serviceTypeOptions = [
     Icon: HiSearch,
     color: "text-yellow-400",
   },
+  {
+    type: "redis" as const,
+    label: "Redis",
+    Icon: HiServer,
+    color: "text-red-400",
+  },
 ];
 
 export default function ServiceForm({ serviceId }: ServiceFormProps) {
@@ -202,8 +232,11 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
 
   const service = serviceData?.service;
 
+  // Create schema that updates when serviceType changes
+  const schema = useMemo(() => createServiceSchema(serviceType), [serviceType]);
+
   const methods = useForm<ServiceFormData>({
-    resolver: yupResolver(createServiceSchema(serviceType)),
+    resolver: yupResolver(schema),
     defaultValues: {
       name: "",
       serviceType: "api",
@@ -234,6 +267,7 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
     control,
     reset,
     watch,
+    setValue,
     formState: { isSubmitting },
   } = methods;
 
@@ -264,6 +298,9 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
         requestBody: service.requestBody || "",
         mongoConnectionString: service.mongoConnectionString || "",
         mongoDatabase: service.mongoDatabase || "admin",
+        mongoPipelines: service.mongoPipelines
+          ? JSON.stringify(service.mongoPipelines, null, 2)
+          : "",
         esConnectionString: service.esConnectionString || "",
         responseTimeWarningMs: service.responseTimeWarningMs || 3000,
         responseTimeWarningAttempts: service.responseTimeWarningAttempts || 3,
@@ -333,6 +370,16 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
     } else if (serviceType === "mongodb") {
       payload.mongoConnectionString = data.mongoConnectionString;
       payload.mongoDatabase = data.mongoDatabase || "admin";
+
+      // Parse pipelines if provided
+      if (data.mongoPipelines) {
+        try {
+          payload.mongoPipelines = JSON.parse(data.mongoPipelines);
+        } catch {
+          setError("Invalid JSON in MongoDB pipelines");
+          return;
+        }
+      }
     } else if (serviceType === "elasticsearch") {
       payload.esConnectionString = data.esConnectionString;
     }
@@ -385,12 +432,15 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
           {/* Service Type Selector */}
           <div className="glass rounded-2xl p-6">
             <h3 className="text-lg font-bold text-white mb-4">Service Type</h3>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
               {serviceTypeOptions.map((option) => (
                 <button
                   key={option.type}
                   type="button"
-                  onClick={() => setServiceType(option.type)}
+                  onClick={() => {
+                    setServiceType(option.type);
+                    setValue("serviceType", option.type);
+                  }}
                   disabled={isEditMode}
                   className={`flex justify-center items-center gap-2 p-4 rounded-xl border-2 transition-smooth text-center ${
                     serviceType === option.type
@@ -496,6 +546,28 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
                       label="Database"
                       placeholder="admin"
                     />
+
+                    <div className="col-span-2">
+                      <FormInput
+                        name="mongoPipelines"
+                        label="Aggregation Pipelines (Optional)"
+                        placeholder='[{"collection": "users", "pipeline": [{"$count": "total"}]}]'
+                        containerClassName="font-mono text-sm"
+                        as="textarea"
+                        rows={6}
+                      />
+                      <p className="text-xs text-gray-400 mt-2">
+                        💡 Enter an array of pipeline configurations in JSON
+                        format. Each pipeline should have a "collection" and
+                        "pipeline" array.
+                        <br />
+                        Example:{" "}
+                        <code className="text-purple-400">
+                          [{"{"}collection: "users", pipeline: [{"{"}$count:
+                          "total"{"}"}]{"}"}]
+                        </code>
+                      </p>
+                    </div>
                   </>
                 )}
 
@@ -508,6 +580,39 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
                     containerClassName="font-mono text-sm"
                     required
                   />
+                )}
+
+                {serviceType === "redis" && (
+                  <>
+                    <FormInput
+                      name="redisConnectionString"
+                      type="text"
+                      label="Connection String"
+                      placeholder="redis://localhost:6379"
+                      containerClassName="font-mono text-sm"
+                      required
+                    />
+                    <FormInput
+                      name="redisPassword"
+                      type="password"
+                      label="Password (optional)"
+                      placeholder="Enter password if required"
+                    />
+                    <FormInput
+                      name="redisDatabase"
+                      type="number"
+                      label="Database Number (optional)"
+                      placeholder="0"
+                      min="0"
+                      max="15"
+                    />
+                    <div className="col-span-2">
+                      <p className="text-sm text-gray-400 mb-2">
+                        💡 Redis operations can be configured after service
+                        creation
+                      </p>
+                    </div>
+                  </>
                 )}
 
                 <div className="grid grid-cols-2 gap-4">

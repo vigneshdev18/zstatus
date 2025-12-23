@@ -1,63 +1,12 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useState, useMemo } from "react";
-import {
-  HiViewGrid,
-  HiServer,
-  HiExclamation,
-  HiChartBar,
-  HiFolder,
-  HiCog,
-  HiBell,
-  HiChevronDown,
-  HiChevronUp,
-} from "react-icons/hi";
+import { usePathname } from "next/navigation";
+import { navigationSections } from "@/lib/constants/sidebar.constants";
+import { HiBell, HiChevronDown, HiChevronUp, HiLogout } from "react-icons/hi";
 import { useApiQuery } from "@/lib/hooks/useApiQuery";
-
-const navigationSections = [
-  {
-    title: "Monitoring",
-    items: [
-      {
-        name: "Overview",
-        href: "/overview",
-        icon: <HiViewGrid className="w-5 h-5" />,
-      },
-      {
-        name: "Services",
-        href: "/services",
-        icon: <HiServer className="w-5 h-5" />,
-      },
-      {
-        name: "Incidents",
-        href: "/incidents",
-        icon: <HiExclamation className="w-5 h-5" />,
-      },
-      {
-        name: "Analytics",
-        href: "/analytics",
-        icon: <HiChartBar className="w-5 h-5" />,
-      },
-    ],
-  },
-  {
-    title: "Configuration",
-    items: [
-      {
-        name: "Groups",
-        href: "/groups",
-        icon: <HiFolder className="w-5 h-5" />,
-      },
-      {
-        name: "Settings",
-        href: "/settings",
-        icon: <HiCog className="w-5 h-5" />,
-      },
-    ],
-  },
-];
+import { useApiMutation } from "@/lib/hooks/useApiMutation";
 
 interface Settings {
   globalHealthChecksEnabled: boolean;
@@ -74,26 +23,20 @@ export default function Sidebar() {
   const pathname = usePathname();
   const [showAlertsList, setShowAlertsList] = useState(false);
 
-  // Fetch settings using useApiQuery
-  const { data: settingsResponse, isLoading: settingsLoading } = useApiQuery<{
-    settings: Settings;
-  }>("/api/settings", {
-    // Refetch when pathname changes to keep data fresh
-    refetchOnMount: true,
-  });
-  const settings = settingsResponse?.settings;
-
-  // Fetch services only if global alerts are enabled
-  const { data: servicesData } = useApiQuery<{ services: Service[] }>(
-    "/api/services",
+  const { data: settingsResponse, isLoading: settingsLoading } = useApiQuery(
+    "/api/settings",
     {
-      // Only fetch if global alerts are enabled
-      enabled: settings?.globalAlertsEnabled === true,
       refetchOnMount: true,
     }
   );
 
-  // Filter services with alerts disabled
+  const settings = settingsResponse?.settings;
+
+  const { data: servicesData } = useApiQuery("/api/services", {
+    enabled: settings?.globalAlertsEnabled === true,
+    refetchOnMount: true,
+  });
+
   const servicesWithAlertsDisabled = useMemo(() => {
     if (!servicesData?.services) return [];
     return servicesData.services.filter(
@@ -101,11 +44,24 @@ export default function Sidebar() {
     );
   }, [servicesData]);
 
-  const loading = settingsLoading;
+  const logoutMutation = useApiMutation({
+    url: "/api/auth/logout",
+    method: "POST",
+    options: {
+      onSuccess: () => {
+        window.location.href = "/login";
+      },
+      onError: (error) => {
+        console.error("Logout failed:", error);
+        window.location.href = "/login";
+      },
+    },
+  });
 
-  // Determine system status
-  const getSystemStatus = () => {
-    if (loading || !settings)
+  const handleLogout = () => logoutMutation.mutate({ success: true });
+
+  const status = useMemo(() => {
+    if (settingsLoading || !settings)
       return { text: "Loading...", color: "gray", pulse: false };
 
     if (!settings.globalHealthChecksEnabled) {
@@ -121,9 +77,7 @@ export default function Sidebar() {
       color: "[var(--color-status-up)]",
       pulse: true,
     };
-  };
-
-  const status = getSystemStatus();
+  }, [settingsLoading, settings]);
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 glass border-r border-[var(--color-border)] flex flex-col">
@@ -252,6 +206,20 @@ export default function Sidebar() {
               )}
             </div>
           )}
+      </div>
+
+      {/* Logout Button */}
+      <div className="p-4 border-t border-white/10">
+        <button
+          onClick={handleLogout}
+          disabled={logoutMutation.isPending}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <HiLogout className="w-5 h-5" />
+          <span className="font-medium">
+            {logoutMutation.isPending ? "Logging out..." : "Logout"}
+          </span>
+        </button>
       </div>
     </aside>
   );

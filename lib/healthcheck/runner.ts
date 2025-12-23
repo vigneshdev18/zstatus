@@ -104,7 +104,8 @@ export async function runApiHealthCheck(
 export async function runMongoHealthCheck(
   connectionString: string,
   database: string = "admin",
-  timeout: number = 5000
+  timeout: number = 5000,
+  pipelines?: Array<{ collection: string; pipeline: any[] }>
 ): Promise<HealthCheckResult> {
   const startTime = Date.now();
   let client: MongoClient | null = null;
@@ -116,10 +117,20 @@ export async function runMongoHealthCheck(
     });
 
     await client.connect();
-
-    // Run a simple ping command
     const db = client.db(database);
-    await db.collection("healthchecks").aggregate([]);
+
+    // If pipelines are provided, execute them sequentially
+    if (pipelines && pipelines.length > 0) {
+      for (const pipelineConfig of pipelines) {
+        const { collection, pipeline } = pipelineConfig;
+
+        // Execute the pipeline
+        await db.collection(collection).aggregate(pipeline).toArray();
+      }
+    } else {
+      // Default: Run a simple ping command
+      await db.collection("healthchecks").aggregate([]);
+    }
 
     const responseTime = Date.now() - startTime;
 
@@ -198,6 +209,80 @@ export async function runElasticsearchHealthCheck(
   }
 }
 
+// Run Redis health check with multiple operations
+export async function runRedisHealthCheck(
+  connectionString: string,
+  timeout: number = 5000,
+  options?: {
+    password?: string;
+    database?: number;
+    operations?: Array<{ command: string; args: string[] }>;
+  }
+): Promise<HealthCheckResult> {
+  const startTime = Date.now();
+
+  // Dynamic import to avoid bundling issues
+  const Redis = (await import("ioredis")).default;
+  let client: InstanceType<typeof Redis> | null = null;
+
+  try {
+    // Create Redis client
+    client = new Redis(connectionString, {
+      password: options?.password,
+      db: options?.database || 0,
+      connectTimeout: timeout,
+      commandTimeout: timeout,
+      lazyConnect: true,
+    });
+
+    // Connect to Redis
+    await client.connect();
+
+    // Default to PING if no operations configured
+    const operations =
+      options?.operations && options.operations.length > 0
+        ? options.operations
+        : [{ command: "PING", args: [] }];
+
+    // Execute all operations sequentially
+    for (const operation of operations) {
+      const { command, args } = operation;
+
+      // Execute the command
+      // @ts-ignore - Dynamic command execution
+      await client.call(command, ...args);
+    }
+
+    const responseTime = Date.now() - startTime;
+
+    return {
+      status: "UP",
+      responseTime,
+    };
+  } catch (error) {
+    const responseTime = Date.now() - startTime;
+    let errorMessage = "Redis connection failed";
+
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+
+    return {
+      status: "DOWN",
+      responseTime,
+      errorMessage,
+    };
+  } finally {
+    if (client) {
+      try {
+        await client.quit();
+      } catch (closeError) {
+        console.error("[Redis] Error closing connection:", closeError);
+      }
+    }
+  }
+}
+
 // Main health check function - delegates to appropriate runner
 export async function runHealthCheck(
   serviceType: string,
@@ -210,8 +295,14 @@ export async function runHealthCheck(
     // MongoDB fields
     mongoConnectionString?: string;
     mongoDatabase?: string;
+    mongoPipelines?: Array<{ collection: string; pipeline: any[] }>;
     // Elasticsearch fields
     esConnectionString?: string;
+    // Redis fields
+    redisConnectionString?: string;
+    redisPassword?: string;
+    redisDatabase?: number;
+    redisOperations?: Array<{ command: string; args: string[] }>;
     // Common
     timeout?: number;
   }
@@ -240,7 +331,8 @@ export async function runHealthCheck(
       return runMongoHealthCheck(
         config.mongoConnectionString,
         config.mongoDatabase || "admin",
-        timeout
+        timeout,
+        config.mongoPipelines
       );
 
     case "elasticsearch":
@@ -250,6 +342,18 @@ export async function runHealthCheck(
         );
       }
       return runElasticsearchHealthCheck(config.esConnectionString, timeout);
+
+    case "redis":
+      if (!config.redisConnectionString) {
+        throw new Error(
+          "Connection string is required for Redis health checks"
+        );
+      }
+      return runRedisHealthCheck(config.redisConnectionString, timeout, {
+        password: config.redisPassword,
+        database: config.redisDatabase,
+        operations: config.redisOperations,
+      });
 
     default:
       throw new Error(`Unsupported service type: ${serviceType}`);

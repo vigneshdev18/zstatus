@@ -1,8 +1,20 @@
 import { ObjectId } from "mongodb";
 
 // Service type definition
-export type ServiceType = "api" | "mongodb" | "elasticsearch";
+export type ServiceType = "api" | "mongodb" | "elasticsearch" | "redis";
 export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "HEAD" | "PATCH";
+
+// Redis operation definition
+export interface RedisOperation {
+  command: string; // e.g., "GET", "HGET", "SMEMBERS"
+  args: string[]; // e.g., ["mykey"] or ["myhash", "field"]
+}
+
+// MongoDB pipeline definition
+export interface MongoDBPipeline {
+  collection: string; // Collection to query
+  pipeline: any[]; // Aggregation pipeline stages
+}
 
 // Service interface - what gets stored in MongoDB
 export interface Service {
@@ -26,9 +38,16 @@ export interface Service {
   // MongoDB specific fields
   mongoConnectionString?: string; // MongoDB connection string
   mongoDatabase?: string; // Database to test
+  mongoPipelines?: MongoDBPipeline[]; // Array of pipelines to execute
 
   // Elasticsearch specific fields
   esConnectionString?: string; // Elasticsearch URL
+
+  // Redis specific fields
+  redisConnectionString?: string; // Redis connection URL (redis://host:port)
+  redisPassword?: string; // Optional password for authentication
+  redisDatabase?: number; // Optional database number (default: 0)
+  redisOperations?: RedisOperation[]; // Array of operations to execute
 
   // Optional metadata
   groupId?: string; // Optional group assignment (if not set, no notifications sent)
@@ -72,9 +91,16 @@ export interface CreateServiceInput {
   // MongoDB fields
   mongoConnectionString?: string;
   mongoDatabase?: string;
+  mongoPipelines?: MongoDBPipeline[];
 
   // Elasticsearch fields
   esConnectionString?: string;
+
+  // Redis fields
+  redisConnectionString?: string;
+  redisPassword?: string;
+  redisDatabase?: number;
+  redisOperations?: RedisOperation[];
 
   // Metadata
   groupId?: string;
@@ -107,9 +133,16 @@ export interface UpdateServiceInput {
   // MongoDB fields
   mongoConnectionString?: string;
   mongoDatabase?: string;
+  mongoPipelines?: MongoDBPipeline[];
 
   // Elasticsearch fields
   esConnectionString?: string;
+
+  // Redis fields
+  redisConnectionString?: string;
+  redisPassword?: string;
+  redisDatabase?: number;
+  redisOperations?: RedisOperation[];
 
   // Metadata
   groupId?: string | null; // Allow null to remove group assignment

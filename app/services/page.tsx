@@ -3,11 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
+  HiCheckCircle,
   HiChevronDown,
   HiChevronRight,
+  HiExclamation,
   HiFolder,
   HiFolderOpen,
   HiPencil,
+  HiServer,
 } from "react-icons/hi";
 import Loading from "@/app/components/Loading";
 import PageHeader from "../components/PageHeader";
@@ -16,6 +19,8 @@ import ServiceCard from "../components/ServiceCard";
 import Button from "@/app/components/Button/Button";
 import { useQueryClient } from "@tanstack/react-query";
 import { useApiQuery } from "@/lib/hooks/useApiQuery";
+import { Grid, GridItem } from "../components/Grid";
+import DetailCard from "../components/DetailsCard";
 
 interface ServiceListType {
   id: string;
@@ -192,25 +197,32 @@ export default function ServicesPage() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="glass rounded-xl p-4">
-          <p className="text-sm text-gray-400 mb-1">Total</p>
-          <p className="text-2xl font-bold text-white">{stats.total}</p>
-        </div>
-        <div className="glass rounded-xl p-4">
-          <p className="text-sm text-gray-400 mb-1">Healthy</p>
-          <p className="text-2xl font-bold text-[var(--color-status-up)]">
-            {stats.healthy}
-          </p>
-        </div>
-        <div className="glass rounded-xl p-4">
-          <p className="text-sm text-gray-400 mb-1">Down</p>
-          <p className="text-2xl font-bold text-[var(--color-status-down)]">
-            {stats.down}
-          </p>
-        </div>
-      </div>
+      <Grid cols={3}>
+        <GridItem>
+          <DetailCard
+            title="Total"
+            value={stats.total}
+            icon={<HiServer className="w-8 h-8 text-white" />}
+            iconContainerClass="bg-gradient-primary"
+          />
+        </GridItem>
+        <GridItem>
+          <DetailCard
+            title="Healthy"
+            value={stats.healthy}
+            icon={<HiCheckCircle className="w-8 h-8 text-white" />}
+            iconContainerClass="bg-gradient-success"
+          />
+        </GridItem>
+        <GridItem>
+          <DetailCard
+            title="Down"
+            value={stats.down}
+            icon={<HiExclamation className="w-8 h-8 text-white" />}
+            iconContainerClass="bg-gradient-danger"
+          />
+        </GridItem>
+      </Grid>
 
       {/* Expand/Collapse Controls */}
       <div className="flex items-center justify-between">

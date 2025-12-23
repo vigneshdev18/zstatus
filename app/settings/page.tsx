@@ -5,7 +5,8 @@ import Loading from "@/app/components/Loading";
 import Switch from "@/app/components/Switch/Switch";
 import { useApiQuery } from "@/lib/hooks/useApiQuery";
 import { useApiMutation } from "@/lib/hooks/useApiMutation";
-import { useQueryClient } from "@tanstack/react-query";
+import PageHeader from "../components/PageHeader";
+import InputField from "../components/Input/Input";
 
 interface Settings {
   globalAlertsEnabled: boolean;
@@ -14,7 +15,6 @@ interface Settings {
 }
 
 export default function SettingsPage() {
-  const queryClient = useQueryClient();
   const [alertCooldownMinutes, setAlertCooldownMinutes] = useState(5);
 
   // Fetch settings using useApiQuery
@@ -63,10 +63,11 @@ export default function SettingsPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       {/* Page Header */}
-      <div>
-        <h1 className="text-4xl font-bold gradient-text mb-2">Settings</h1>
-        <p className="text-gray-400">Configure global application settings</p>
-      </div>
+      <PageHeader
+        title="Settings"
+        subtitle="Configure global application settings"
+        showBack={false}
+      />
 
       {/* Settings Sections */}
       <div className="space-y-6">
@@ -180,15 +181,13 @@ export default function SettingsPage() {
                     Minimum time between consecutive alerts for the same service
                   </p>
 
-                  <input
-                    type="number"
+                  <InputField
                     min="0"
                     step="1"
                     value={alertCooldownMinutes}
                     onChange={(e) =>
                       setAlertCooldownMinutes(parseInt(e.target.value) || 0)
                     }
-                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
                 <button
@@ -202,16 +201,6 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
-
-        {/* Future Settings Sections */}
-        {/* <div className="glass rounded-2xl p-6">
-          <h2 className="text-2xl font-bold text-white mb-4">
-            General Settings
-          </h2>
-          <p className="text-gray-400 text-sm">
-            Additional settings will be available here in future updates.
-          </p>
-        </div> */}
       </div>
     </div>
   );

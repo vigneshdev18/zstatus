@@ -3,6 +3,7 @@
 import { useState } from "react";
 import AnalyticsChart from "@/app/components/AnalyticsChart";
 import Button from "@/app/components/Button/Button";
+import { cn } from "@/lib/utils/cn";
 
 interface HealthCheck {
   id: string;
@@ -26,18 +27,28 @@ interface AnalyticsWithFilterProps {
   serviceData: ServiceData[];
 }
 
-// Color palette for different services
+// Color palette for different services - 20 vibrant, distinct colors
 const SERVICE_COLORS = [
-  "#667eea",
-  "#0ba360",
-  "#f2994a",
-  "#eb3349",
-  "#3cba92",
-  "#f45c43",
-  "#f2c94c",
-  "#764ba2",
-  "#0f9d58",
-  "#db4437",
+  "#667eea", // Purple-blue
+  "#0ba360", // Green
+  "#f2994a", // Orange
+  "#eb3349", // Red
+  "#3cba92", // Teal
+  "#f45c43", // Coral
+  "#f2c94c", // Yellow
+  "#764ba2", // Purple
+  "#0f9d58", // Forest green
+  "#db4437", // Crimson
+  "#4285f4", // Blue
+  "#ea4335", // Bright red
+  "#fbbc04", // Gold
+  "#34a853", // Lime green
+  "#ff6d00", // Deep orange
+  "#ab47bc", // Magenta
+  "#00acc1", // Cyan
+  "#7cb342", // Light green
+  "#e91e63", // Pink
+  "#5e35b1", // Deep purple
 ];
 
 export default function AnalyticsWithFilter({
@@ -83,9 +94,7 @@ export default function AnalyticsWithFilter({
   return (
     <div className="space-y-6">
       {/* Chart */}
-      <div>
-        <AnalyticsChart serviceData={filteredServiceData} />
-      </div>
+      <AnalyticsChart serviceData={filteredServiceData} />
 
       {/* Service Filter */}
       <div className="glass rounded-2xl p-6">
@@ -104,7 +113,7 @@ export default function AnalyticsWithFilter({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="flex flex-wrap gap-3 ">
           {servicesWithColors.map((service) => {
             const color =
               SERVICE_COLORS[service.colorIndex! % SERVICE_COLORS.length];
@@ -114,43 +123,15 @@ export default function AnalyticsWithFilter({
               <button
                 key={service.id}
                 onClick={() => toggleService(service.id)}
-                className={`
-                  p-3 rounded-xl border transition-smooth text-left
-                  ${
-                    isSelected
-                      ? "bg-white/10 border-white/20"
-                      : "bg-white/5 border-white/10 opacity-50"
-                  }
-                  hover:bg-white/15
-                `}
+                className={cn(
+                  "p-3 rounded-xl border transition-smooth text-left min-w-[150px]",
+                  isSelected
+                    ? "bg-white/10 border-white/20"
+                    : "bg-white/5 border-white/10 opacity-50",
+                  "hover:bg-white/15"
+                )}
               >
                 <div className="flex items-center gap-3">
-                  {/* Checkbox */}
-                  <div
-                    className={`
-                      w-5 h-5 rounded border-2 flex items-center justify-center transition-smooth
-                      ${
-                        isSelected ? "border-white bg-white" : "border-gray-400"
-                      }
-                    `}
-                  >
-                    {isSelected && (
-                      <svg
-                        className="w-3 h-3 text-gray-900"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={3}
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                    )}
-                  </div>
-
                   {/* Color indicator */}
                   <div
                     className="w-4 h-4 rounded-full flex-shrink-0"

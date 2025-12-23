@@ -5,6 +5,7 @@ import {
   deleteService,
 } from "@/lib/db/services";
 import { UpdateServiceInput, Service } from "@/lib/types/service";
+import { requireAdmin } from "@/lib/auth/permissions";
 
 // GET /api/services/[id] - Get single service
 export async function GET(
@@ -36,9 +37,16 @@ export async function GET(
         // MongoDB fields
         mongoConnectionString: service.mongoConnectionString,
         mongoDatabase: service.mongoDatabase,
+        mongoPipelines: service.mongoPipelines,
 
         // Elasticsearch fields
         esConnectionString: service.esConnectionString,
+
+        // Redis fields
+        redisConnectionString: service.redisConnectionString,
+        redisPassword: service.redisPassword,
+        redisDatabase: service.redisDatabase,
+        redisOperations: service.redisOperations,
 
         // Metadata
         groupId: service.groupId,
@@ -74,12 +82,15 @@ export async function GET(
   }
 }
 
-// PUT /api/services/[id] - Update service
+// PUT /api/services/[id] - Update service (Admin only)
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    // Check admin permission
+    await requireAdmin(request);
+
     const { id } = params;
     const body = await request.json();
 
@@ -95,7 +106,14 @@ export async function PUT(
       requestBody: body.requestBody,
       mongoConnectionString: body.mongoConnectionString,
       mongoDatabase: body.mongoDatabase,
+      mongoPipelines: body.mongoPipelines,
       esConnectionString: body.esConnectionString,
+
+      // Redis fields
+      redisConnectionString: body.redisConnectionString,
+      redisPassword: body.redisPassword,
+      redisDatabase: body.redisDatabase,
+      redisOperations: body.redisOperations,
 
       // Metadata
       groupId: body.groupId,
@@ -173,12 +191,15 @@ export async function PUT(
   }
 }
 
-// DELETE /api/services/[id] - Delete service
+// DELETE /api/services/[id] - Delete service (Admin only)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Check admin permission
+    await requireAdmin(request);
+
     const { id } = await params;
     const deleted = await deleteService(id);
 
