@@ -48,6 +48,7 @@ export interface Service {
   redisPassword?: string; // Optional password for authentication
   redisDatabase?: number; // Optional database number (default: 0)
   redisOperations?: RedisOperation[]; // Array of operations to execute
+  redisKeys?: string[]; // Array of keys to test with read/write operations
 
   // Optional metadata
   groupId?: string; // Optional group assignment (if not set, no notifications sent)
@@ -101,6 +102,7 @@ export interface CreateServiceInput {
   redisPassword?: string;
   redisDatabase?: number;
   redisOperations?: RedisOperation[];
+  redisKeys?: string[];
 
   // Metadata
   groupId?: string;
@@ -143,6 +145,7 @@ export interface UpdateServiceInput {
   redisPassword?: string;
   redisDatabase?: number;
   redisOperations?: RedisOperation[];
+  redisKeys?: string[];
 
   // Metadata
   groupId?: string | null; // Allow null to remove group assignment
@@ -158,4 +161,6 @@ export interface UpdateServiceInput {
   responseTimeWarningAttempts?: number;
   responseTimeCriticalMs?: number;
   responseTimeCriticalAttempts?: number;
+  consecutiveSlowWarning?: number;
+  consecutiveSlowCritical?: number;
 }

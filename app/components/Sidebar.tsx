@@ -7,16 +7,11 @@ import { navigationSections } from "@/lib/constants/sidebar.constants";
 import { HiBell, HiChevronDown, HiChevronUp, HiLogout } from "react-icons/hi";
 import { useApiQuery } from "@/lib/hooks/useApiQuery";
 import { useApiMutation } from "@/lib/hooks/useApiMutation";
+import type { Service } from "@/lib/types/api.types";
 
 interface Settings {
   globalHealthChecksEnabled: boolean;
   globalAlertsEnabled: boolean;
-}
-
-interface Service {
-  id: string;
-  name: string;
-  alertsEnabled: boolean;
 }
 
 export default function Sidebar() {

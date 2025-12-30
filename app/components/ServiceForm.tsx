@@ -2,7 +2,12 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useForm, Controller, FormProvider } from "react-hook-form";
+import {
+  useForm,
+  Controller,
+  FormProvider,
+  useFieldArray,
+} from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import {
@@ -22,6 +27,7 @@ import Button from "@/app/components/Button/Button";
 import Switch from "@/app/components/Switch/Switch";
 import { useApiQuery } from "@/lib/hooks/useApiQuery";
 import { useApiMutation } from "@/lib/hooks/useApiMutation";
+import type { Service } from "@/lib/types/api.types";
 
 type ServiceType = "api" | "mongodb" | "elasticsearch" | "redis";
 
@@ -29,35 +35,6 @@ interface Group {
   id: string;
   name: string;
   color?: string;
-}
-
-interface Service {
-  id: string;
-  name: string;
-  serviceType: ServiceType;
-  timeout: number;
-  checkInterval: number;
-  healthCheckUrl?: string;
-  httpMethod?: string;
-  requestHeaders?: Record<string, string>;
-  requestBody?: string;
-  mongoConnectionString?: string;
-  mongoDatabase?: string;
-  esConnectionString?: string;
-  redisConnectionString?: string;
-  redisPassword?: string;
-  redisDatabase?: number;
-  redisOperations?: Array<{ command: string; args: string[] }>;
-  groupId?: string;
-  alertsEnabled?: boolean;
-  description?: string;
-  team?: string;
-  owner?: string;
-  grafanaDashboardId?: string;
-  responseTimeWarningMs?: number;
-  responseTimeWarningAttempts?: number;
-  responseTimeCriticalMs?: number;
-  responseTimeCriticalAttempts?: number;
 }
 
 interface ServiceFormProps {
@@ -94,17 +71,17 @@ const createServiceSchema = (serviceType: ServiceType) => {
       .min(30, "Minimum 30s")
       .max(3600, "Maximum 3600s")
       .required("Check interval is required"),
-    description: yup.string().optional(),
-    team: yup.string().optional(),
-    owner: yup.string().optional(),
-    grafanaDashboardId: yup.string().optional(),
-    groupId: yup.string().nullable().optional(),
+    description: yup.string().notRequired(),
+    team: yup.string().notRequired(),
+    owner: yup.string().notRequired(),
+    grafanaDashboardId: yup.string().notRequired(),
+    groupId: yup.string().nullable().notRequired(),
     alertsEnabled: yup.boolean().required(),
-    httpMethod: yup.string().optional(),
-    responseTimeWarningMs: yup.number().min(100).max(30000).optional(),
-    responseTimeWarningAttempts: yup.number().min(1).max(10).optional(),
-    responseTimeCriticalMs: yup.number().min(100).max(30000).optional(),
-    responseTimeCriticalAttempts: yup.number().min(1).max(10).optional(),
+    httpMethod: yup.string().notRequired(),
+    responseTimeWarningMs: yup.number().min(100).max(30000).notRequired(),
+    responseTimeWarningAttempts: yup.number().min(1).max(10).notRequired(),
+    responseTimeCriticalMs: yup.number().min(100).max(30000).notRequired(),
+    responseTimeCriticalAttempts: yup.number().min(1).max(10).notRequired(),
   };
 
   if (serviceType === "api") {
@@ -116,7 +93,7 @@ const createServiceSchema = (serviceType: ServiceType) => {
         .required("Health check URL is required"),
       requestHeaders: yup
         .string()
-        .optional()
+        .notRequired()
         .test("is-json", "Must be valid JSON", (value) => {
           if (!value) return true;
           try {
@@ -126,7 +103,7 @@ const createServiceSchema = (serviceType: ServiceType) => {
             return false;
           }
         }),
-      requestBody: yup.string().optional(),
+      requestBody: yup.string().notRequired(),
     });
   } else if (serviceType === "mongodb") {
     return yup.object({
@@ -134,7 +111,7 @@ const createServiceSchema = (serviceType: ServiceType) => {
       mongoConnectionString: yup
         .string()
         .required("MongoDB connection string is required"),
-      mongoDatabase: yup.string().optional(),
+      mongoDatabase: yup.string().notRequired(),
     });
   } else if (serviceType === "elasticsearch") {
     return yup.object({
@@ -150,8 +127,13 @@ const createServiceSchema = (serviceType: ServiceType) => {
       redisConnectionString: yup
         .string()
         .required("Redis connection string is required"),
-      redisPassword: yup.string().optional(),
-      redisDatabase: yup.number().min(0).max(15).optional(),
+      redisPassword: yup.string().notRequired(),
+      redisDatabase: yup
+        .number()
+        .transform((value) => (Number.isNaN(value) ? null : value))
+        .min(0)
+        .max(15)
+        .notRequired(),
     });
   }
 
@@ -175,11 +157,13 @@ type ServiceFormData = {
   requestBody?: string;
   mongoConnectionString?: string;
   mongoDatabase?: string;
+  mongoPipelines?: string; // JSON string of pipelines array
   esConnectionString?: string;
   redisConnectionString?: string;
   redisPassword?: string;
   redisDatabase?: number;
   redisOperations?: string; // JSON string of operations array
+  redisKeys?: { value: string; id?: string }[]; // Array of keys to test
   responseTimeWarningMs?: number;
   responseTimeWarningAttempts?: number;
   responseTimeCriticalMs?: number;
@@ -220,15 +204,16 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
   const [serviceType, setServiceType] = useState<ServiceType>("api");
 
   // Fetch groups
-  const { data: groupsData } = useApiQuery<{ groups: Group[] }>("/api/groups");
+  const { data: groupsData } = useApiQuery("/api/groups");
   const groups = groupsData?.groups || [];
 
   // Fetch service if editing
-  const { data: serviceData, isLoading: loading } = useApiQuery<{
-    service: Service;
-  }>(`/api/services/${serviceId}`, {
-    enabled: isEditMode && !!serviceId,
-  });
+  const { data: serviceData, isLoading: loading } = useApiQuery(
+    `/api/services/${serviceId}` as "/api/services/[id]",
+    {
+      enabled: isEditMode && !!serviceId,
+    }
+  );
 
   const service = serviceData?.service;
 
@@ -236,7 +221,7 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
   const schema = useMemo(() => createServiceSchema(serviceType), [serviceType]);
 
   const methods = useForm<ServiceFormData>({
-    resolver: yupResolver(schema),
+    resolver: yupResolver(schema) as any,
     defaultValues: {
       name: "",
       serviceType: "api",
@@ -255,6 +240,7 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
       mongoConnectionString: "",
       mongoDatabase: "admin",
       esConnectionString: "",
+      redisKeys: [],
       responseTimeWarningMs: 3000,
       responseTimeWarningAttempts: 3,
       responseTimeCriticalMs: 5000,
@@ -274,6 +260,15 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
   const watchedGroupId = watch("groupId");
   const watchedAlertsEnabled = watch("alertsEnabled");
 
+  // Field array for Redis keys
+  const {
+    fields: redisKeyFields,
+    append: appendRedisKey,
+    remove: removeRedisKey,
+  } = useFieldArray({
+    control,
+    name: "redisKeys",
+  });
   // Reset form when service data loads
   useEffect(() => {
     if (service) {
@@ -302,6 +297,10 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
           ? JSON.stringify(service.mongoPipelines, null, 2)
           : "",
         esConnectionString: service.esConnectionString || "",
+        redisConnectionString: service.redisConnectionString || "",
+        redisPassword: service.redisPassword || "",
+        redisDatabase: service.redisDatabase,
+        redisKeys: service.redisKeys?.map((key) => ({ value: key })) || [],
         responseTimeWarningMs: service.responseTimeWarningMs || 3000,
         responseTimeWarningAttempts: service.responseTimeWarningAttempts || 3,
         responseTimeCriticalMs: service.responseTimeCriticalMs || 5000,
@@ -311,8 +310,8 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
   }, [service, reset]);
 
   // Mutation for create/update
-  const saveService = useApiMutation<Service, any>({
-    url: isEditMode ? `/api/services/${serviceId}` : "/api/services",
+  const saveService = useApiMutation({
+    url: (isEditMode ? `/api/services/${serviceId}` : "/api/services") as any,
     method: isEditMode ? "PUT" : "POST",
     invalidateQueries: [["api", "/api/services"]],
     options: {
@@ -382,6 +381,26 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
       }
     } else if (serviceType === "elasticsearch") {
       payload.esConnectionString = data.esConnectionString;
+    } else if (serviceType === "redis") {
+      payload.redisConnectionString = data.redisConnectionString;
+      payload.redisPassword = data.redisPassword || undefined;
+
+      // Handle redisDatabase - convert empty string to undefined, otherwise parse as number
+      const dbValue = data.redisDatabase as number | string | undefined | null;
+      if (dbValue !== undefined && dbValue !== "" && dbValue !== null) {
+        const dbNum =
+          typeof dbValue === "string" ? parseInt(dbValue, 10) : dbValue;
+        payload.redisDatabase = !isNaN(dbNum) ? dbNum : undefined;
+      } else {
+        payload.redisDatabase = undefined;
+      }
+
+      // Filter out empty keys and extract just the values
+      const validKeys =
+        data.redisKeys
+          ?.filter((key) => key.value.trim() !== "")
+          .map((key) => key.value) || [];
+      payload.redisKeys = validKeys.length > 0 ? validKeys : undefined;
     }
 
     saveService.mutate(payload);
@@ -606,11 +625,67 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
                       min="0"
                       max="15"
                     />
+
+                    {/* Redis Keys Management */}
                     <div className="col-span-2">
-                      <p className="text-sm text-gray-400 mb-2">
-                        💡 Redis operations can be configured after service
-                        creation
+                      <div className="flex items-center justify-between mb-3">
+                        <label className="block text-sm font-medium text-gray-300">
+                          Redis Keys for Testing
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => appendRedisKey({ value: "" })}
+                          className="flex items-center gap-1 px-3 py-1.5 text-sm bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg transition-smooth"
+                        >
+                          <HiPlus className="w-4 h-4" />
+                          Add Key
+                        </button>
+                      </div>
+
+                      <p className="text-xs text-gray-400 mb-3">
+                        💡 Specify Redis keys to test with read/write
+                        operations. Response times will be tracked separately
+                        for analytics.
                       </p>
+
+                      {redisKeyFields.length > 0 ? (
+                        <div className="space-y-2">
+                          {redisKeyFields.map((field, index) => (
+                            <div
+                              key={field.id}
+                              className="flex items-center gap-2"
+                            >
+                              <Controller
+                                name={`redisKeys.${index}.value` as const}
+                                control={control}
+                                render={({ field }) => (
+                                  <input
+                                    {...field}
+                                    value={field.value}
+                                    type="text"
+                                    placeholder="e.g., user:session:123, cache:products"
+                                    className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-smooth font-mono text-sm"
+                                  />
+                                )}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removeRedisKey(index)}
+                                className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-smooth"
+                              >
+                                <HiTrash className="w-5 h-5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="px-4 py-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                          <p className="text-sm text-yellow-300">
+                            ⚠️ No keys configured. A default PING command will
+                            be used for health checks.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </>
                 )}

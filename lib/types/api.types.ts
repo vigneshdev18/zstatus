@@ -4,11 +4,48 @@
 interface Service {
   id: string;
   name: string;
-  healthCheckUrl: string;
+  serviceType: "api" | "mongodb" | "elasticsearch" | "redis";
+  timeout: number;
+  checkInterval: number;
+
+  // API/HTTP specific
+  healthCheckUrl?: string;
+  httpMethod?: string;
+  requestHeaders?: Record<string, string>;
+  requestBody?: string;
+
+  // MongoDB specific
+  mongoConnectionString?: string;
+  mongoDatabase?: string;
+  mongoPipelines?: Array<{ collection: string; pipeline: any[] }>;
+
+  // Elasticsearch specific
+  esConnectionString?: string;
+
+  // Redis specific
+  redisConnectionString?: string;
+  redisPassword?: string;
+  redisDatabase?: number;
+  redisOperations?: Array<{ command: string; args: string[] }>;
+  redisKeys?: string[];
+
+  // Metadata
+  groupId?: string;
   alertsEnabled: boolean;
+  description?: string;
+  team?: string;
+  owner?: string;
+  grafanaDashboardId?: string;
+
+  // Response time alerting
+  responseTimeWarningMs?: number;
+  responseTimeWarningAttempts?: number;
+  responseTimeCriticalMs?: number;
+  responseTimeCriticalAttempts?: number;
+
+  // Status tracking
   lastStatus?: "UP" | "DOWN";
   lastCheckedAt?: string;
-  groupId?: string;
 }
 
 interface Incident {
@@ -42,6 +79,8 @@ interface Group {
   id: string;
   name: string;
   description?: string;
+  color?: string;
+  webhookUrls: string[];
 }
 
 interface User {
@@ -59,7 +98,7 @@ export type ApiResponseMap = {
   };
   "/api/services/[id]": {
     GET: { service: Service };
-    PATCH: Service;
+    PUT: Service;
     DELETE: { success: boolean };
   };
   "/api/incidents": {

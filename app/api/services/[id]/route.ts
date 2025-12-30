@@ -47,6 +47,7 @@ export async function GET(
         redisPassword: service.redisPassword,
         redisDatabase: service.redisDatabase,
         redisOperations: service.redisOperations,
+        redisKeys: service.redisKeys,
 
         // Metadata
         groupId: service.groupId,
@@ -85,13 +86,13 @@ export async function GET(
 // PUT /api/services/[id] - Update service (Admin only)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Check admin permission
     await requireAdmin(request);
 
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
 
     const updateData: UpdateServiceInput = {
@@ -114,6 +115,7 @@ export async function PUT(
       redisPassword: body.redisPassword,
       redisDatabase: body.redisDatabase,
       redisOperations: body.redisOperations,
+      redisKeys: body.redisKeys,
 
       // Metadata
       groupId: body.groupId,

@@ -217,6 +217,7 @@ export async function runRedisHealthCheck(
     password?: string;
     database?: number;
     operations?: Array<{ command: string; args: string[] }>;
+    keys?: string[]; // Keys to test with read/write operations
   }
 ): Promise<HealthCheckResult> {
   const startTime = Date.now();
@@ -226,38 +227,90 @@ export async function runRedisHealthCheck(
   let client: InstanceType<typeof Redis> | null = null;
 
   try {
-    // Create Redis client
+    // Create Redis client with error suppression
     client = new Redis(connectionString, {
       password: options?.password,
       db: options?.database || 0,
       connectTimeout: timeout,
       commandTimeout: timeout,
       lazyConnect: true,
+      maxRetriesPerRequest: 1, // Limit retries for faster failure
+      enableOfflineQueue: false, // Don't queue commands when disconnected
+      retryStrategy: () => null, // Don't retry connections
     });
 
-    // Connect to Redis
-    await client.connect();
+    // Immediately attach error handler to catch all errors
+    let connectionError: Error | null = null;
+    client.on("error", (err) => {
+      connectionError = err;
+      // Suppress the error event - we'll handle it in the catch block
+    });
 
-    // Default to PING if no operations configured
-    const operations =
-      options?.operations && options.operations.length > 0
-        ? options.operations
-        : [{ command: "PING", args: [] }];
+    // Connect to Redis with proper error handling
+    try {
+      await client.connect();
 
-    // Execute all operations sequentially
-    for (const operation of operations) {
-      const { command, args } = operation;
+      // If there was a connection error, throw it
+      if (connectionError) {
+        throw connectionError;
+      }
+    } catch (connectErr) {
+      // Re-throw to be caught by outer try-catch
+      throw connectErr;
+    }
 
-      // Execute the command
-      // @ts-ignore - Dynamic command execution
-      await client.call(command, ...args);
+    let totalReadTime = 0;
+    let totalWriteTime = 0;
+    let readCount = 0;
+    let writeCount = 0;
+
+    // If keys are specified, perform read/write operations on them
+    if (options?.keys && options.keys.length > 0) {
+      const testValue = `zstatus_healthcheck_${Date.now()}`;
+
+      for (const key of options.keys) {
+        // Perform WRITE operation (SET)
+        const writeStart = Date.now();
+        await client.set(key, testValue, "EX", 60); // Set with 60s expiry
+        const writeTime = Date.now() - writeStart;
+        totalWriteTime += writeTime;
+        writeCount++;
+
+        // Perform READ operation (GET)
+        const readStart = Date.now();
+        await client.get(key);
+        const readTime = Date.now() - readStart;
+        totalReadTime += readTime;
+        readCount++;
+      }
+    } else if (options?.operations && options.operations.length > 0) {
+      // Execute custom operations if provided
+      for (const operation of options.operations) {
+        const { command, args } = operation;
+        // @ts-ignore - Dynamic command execution
+        await client.call(command, ...args);
+      }
+    } else {
+      // Default to PING if no operations or keys configured
+      await client.ping();
     }
 
     const responseTime = Date.now() - startTime;
 
+    // Calculate averages
+    const avgReadTime =
+      readCount > 0 ? Math.round(totalReadTime / readCount) : undefined;
+    const avgWriteTime =
+      writeCount > 0 ? Math.round(totalWriteTime / writeCount) : undefined;
+
     return {
       status: "UP",
       responseTime,
+      metadata: {
+        readResponseTime: avgReadTime,
+        writeResponseTime: avgWriteTime,
+        keysChecked: options?.keys?.length || 0,
+      },
     };
   } catch (error) {
     const responseTime = Date.now() - startTime;
@@ -275,9 +328,15 @@ export async function runRedisHealthCheck(
   } finally {
     if (client) {
       try {
-        await client.quit();
+        // Only try to quit if the client is connected
+        if (client.status === "ready" || client.status === "connect") {
+          await client.quit();
+        } else {
+          // Just disconnect without waiting for graceful shutdown
+          client.disconnect();
+        }
       } catch (closeError) {
-        console.error("[Redis] Error closing connection:", closeError);
+        // Silently ignore close errors - connection is already failed
       }
     }
   }
@@ -303,6 +362,7 @@ export async function runHealthCheck(
     redisPassword?: string;
     redisDatabase?: number;
     redisOperations?: Array<{ command: string; args: string[] }>;
+    redisKeys?: string[];
     // Common
     timeout?: number;
   }
@@ -344,6 +404,7 @@ export async function runHealthCheck(
       return runElasticsearchHealthCheck(config.esConnectionString, timeout);
 
     case "redis":
+      console.log(config);
       if (!config.redisConnectionString) {
         throw new Error(
           "Connection string is required for Redis health checks"
@@ -353,6 +414,7 @@ export async function runHealthCheck(
         password: config.redisPassword,
         database: config.redisDatabase,
         operations: config.redisOperations,
+        keys: config.redisKeys,
       });
 
     default:

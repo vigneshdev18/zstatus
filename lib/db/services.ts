@@ -20,8 +20,8 @@ export async function createService(
     id: randomUUID(),
     name: input.name,
     serviceType: input.serviceType,
-    timeout: input.timeout,
-    checkInterval: input.checkInterval,
+    timeout: input.timeout ?? 5000, // Default 5 seconds
+    checkInterval: input.checkInterval ?? 60, // Default 60 seconds
 
     // API fields
     ...(input.healthCheckUrl && { healthCheckUrl: input.healthCheckUrl }),
@@ -34,11 +34,23 @@ export async function createService(
       mongoConnectionString: input.mongoConnectionString,
     }),
     ...(input.mongoDatabase && { mongoDatabase: input.mongoDatabase }),
+    ...(input.mongoPipelines && { mongoPipelines: input.mongoPipelines }),
 
     // Elasticsearch fields
     ...(input.esConnectionString && {
       esConnectionString: input.esConnectionString,
     }),
+
+    // Redis fields
+    ...(input.redisConnectionString && {
+      redisConnectionString: input.redisConnectionString,
+    }),
+    ...(input.redisPassword && { redisPassword: input.redisPassword }),
+    ...(input.redisDatabase !== undefined && {
+      redisDatabase: input.redisDatabase,
+    }),
+    ...(input.redisOperations && { redisOperations: input.redisOperations }),
+    ...(input.redisKeys && { redisKeys: input.redisKeys }),
 
     // Optional metadata
     ...(input.groupId && { groupId: input.groupId }),
@@ -156,18 +168,27 @@ export async function updateService(
 ): Promise<Service | null> {
   const db = await getDatabase();
 
+  // Separate null values for $unset operation
+  const updateDoc: any = { $set: { updatedAt: new Date() } };
+  const unsetDoc: any = {};
+
+  // Handle each field
+  Object.entries(input).forEach(([key, value]) => {
+    if (value === null) {
+      unsetDoc[key] = "";
+    } else if (value !== undefined) {
+      updateDoc.$set[key] = value;
+    }
+  });
+
+  // Add $unset if there are fields to unset
+  if (Object.keys(unsetDoc).length > 0) {
+    updateDoc.$unset = unsetDoc;
+  }
+
   const result = await db
     .collection<Service>(SERVICES_COLLECTION)
-    .findOneAndUpdate(
-      { id },
-      {
-        $set: {
-          ...input,
-          updatedAt: new Date(),
-        },
-      },
-      { returnDocument: "after" }
-    );
+    .findOneAndUpdate({ id }, updateDoc, { returnDocument: "after" });
 
   return result || null;
 }

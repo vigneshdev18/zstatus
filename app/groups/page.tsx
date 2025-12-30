@@ -1,12 +1,9 @@
 import Link from "next/link";
 import { getAllGroups } from "@/lib/db/groups";
 import { getAllServices } from "@/lib/db/services";
-import {
-  HiServer,
-  HiBell,
-  HiFolder,
-  HiInformationCircle,
-} from "react-icons/hi";
+import { HiBell, HiFolder, HiInformationCircle } from "react-icons/hi";
+import PageHeader from "../components/PageHeader";
+import GroupCard from "../components/GroupCard";
 
 export default async function GroupsPage() {
   const groups = await getAllGroups();
@@ -22,14 +19,11 @@ export default async function GroupsPage() {
     <div className="max-w-7xl mx-auto space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-bold gradient-text mb-2">
-            Service Groups
-          </h1>
-          <p className="text-gray-400">
-            Organize services and configure notification channels by team
-          </p>
-        </div>
+        <PageHeader
+          title="Service Groups"
+          subtitle="Organize services and configure notification channels by team"
+        />
+
         <Link
           href="/groups/new"
           className="px-6 py-3 bg-gradient-primary rounded-xl text-white font-medium hover:scale-105 transition-smooth shadow-gradient"
@@ -57,57 +51,7 @@ export default async function GroupsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {groupServiceCounts.map((group) => (
-            <Link
-              key={group.id}
-              href={`/groups/${group.id}/edit`}
-              className="glass rounded-2xl p-6 hover:scale-105 transition-smooth cursor-pointer group"
-            >
-              {/* Group Color Bar */}
-              <div
-                className="h-2 rounded-full mb-4"
-                style={{
-                  background: group.color || "#667eea",
-                }}
-              />
-
-              {/* Group Info */}
-              <h3 className="text-xl font-bold text-white mb-2 group-hover:gradient-text transition-smooth">
-                {group.name}
-              </h3>
-              {group.description && (
-                <p className="text-sm text-gray-400 mb-4 line-clamp-2">
-                  {group.description}
-                </p>
-              )}
-
-              {/* Stats */}
-              <div className="flex items-center gap-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <HiServer className="w-5 h-5 text-purple-400" />
-                  <span className="text-gray-300">
-                    {group.serviceCount}{" "}
-                    {group.serviceCount === 1 ? "service" : "services"}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <HiBell className="w-5 h-5 text-blue-400" />
-                  <span className="text-gray-300">
-                    {group.webhookUrls.length}{" "}
-                    {group.webhookUrls.length === 1 ? "channel" : "channels"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Webhook Status */}
-              {group.webhookUrls.length === 0 && (
-                <div className="mt-4 px-3 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg flex items-center gap-2">
-                  <HiInformationCircle className="w-4 h-4 text-yellow-300" />
-                  <p className="text-xs text-yellow-300">
-                    No webhooks configured
-                  </p>
-                </div>
-              )}
-            </Link>
+            <GroupCard key={group.id} group={group} />
           ))}
         </div>
       )}

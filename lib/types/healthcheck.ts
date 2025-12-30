@@ -34,4 +34,10 @@ export interface HealthCheckResult {
   responseTime: number;
   statusCode?: number;
   errorMessage?: string;
+  metadata?: {
+    readResponseTime?: number; // For Redis read operations
+    writeResponseTime?: number; // For Redis write operations
+    keysChecked?: number; // Number of keys tested
+    [key: string]: any; // Allow additional metadata
+  };
 }

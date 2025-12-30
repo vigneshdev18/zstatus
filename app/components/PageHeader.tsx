@@ -19,21 +19,20 @@ export default function PageHeader({
   const router = useRouter();
 
   return (
-    <div className="flex items-center gap-4">
+    <div>
       {showBack && (
         <Button
           onClick={() => router.back()}
           variant="ghost"
           size="sm"
-          className="mb-4 !px-0 text-gray-400 hover:text-white"
+          className="!px-0 text-gray-400 hover:text-white mb-0"
         >
           ← {backLabel}
         </Button>
       )}
-      <div>
-        <h1 className="text-4xl font-bold gradient-text mb-2">{title}</h1>
-        {subtitle && <p className="text-gray-400">{subtitle}</p>}
-      </div>
+
+      <h1 className="text-4xl font-bold gradient-text">{title}</h1>
+      {subtitle && <p className="text-gray-400">{subtitle}</p>}
     </div>
   );
 }

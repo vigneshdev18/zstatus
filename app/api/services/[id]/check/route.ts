@@ -42,6 +42,7 @@ export async function POST(
         config.redisPassword = service.redisPassword;
         config.redisDatabase = service.redisDatabase;
         config.redisOperations = service.redisOperations;
+        config.redisKeys = service.redisKeys;
         break;
     }
 

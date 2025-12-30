@@ -14,18 +14,7 @@ import {
   AlertsTab,
   ServiceDetailSkeleton,
 } from "@/app/components/service";
-
-interface Service {
-  id: string;
-  name: string;
-  healthCheckUrl: string;
-  timeout: number;
-  checkInterval: number;
-  description?: string;
-  team?: string;
-  owner?: string;
-  lastStatus?: "UP" | "DOWN";
-}
+import type { Service } from "@/lib/types/api.types";
 
 export default function ServiceDetailPage({
   params,
@@ -35,9 +24,9 @@ export default function ServiceDetailPage({
   const { id } = use(params);
 
   // Fetch service details
-  const { data: serviceData, isLoading: serviceLoading } = useApiQuery<{
-    service: Service;
-  }>(`/api/services/${id}`);
+  const { data: serviceData, isLoading: serviceLoading } = useApiQuery(
+    `/api/services/${id}` as "/api/services/[id]"
+  );
 
   const service = serviceData?.service;
 
