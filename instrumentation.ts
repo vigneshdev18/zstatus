@@ -3,6 +3,7 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     // Skip initialization during build time
     // Check multiple indicators that we're in a build phase
+
     const isBuildPhase =
       process.env.NEXT_PHASE === "phase-production-build" ||
       process.argv.includes("build") ||
