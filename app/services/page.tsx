@@ -57,18 +57,16 @@ export default function ServicesPage() {
   const queryClient = useQueryClient();
   const [togglingAlerts, setTogglingAlerts] = useState<Set<string>>(new Set());
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
-    new Set(["other"])
+    new Set(["other"]),
   );
 
   // Fetch services using useApiQuery
-  const { data: servicesData, isLoading: servicesLoading } = useApiQuery<{
-    services: ServiceListType[];
-  }>("/api/services");
+  const { data: servicesData, isLoading: servicesLoading } =
+    useApiQuery("/api/services");
 
   // Fetch groups using useApiQuery
-  const { data: groupsData, isLoading: groupsLoading } = useApiQuery<{
-    groups: Group[];
-  }>("/api/groups");
+  const { data: groupsData, isLoading: groupsLoading } =
+    useApiQuery("/api/groups");
 
   const services = servicesData?.services || [];
   const groups = groupsData?.groups || [];
@@ -115,10 +113,10 @@ export default function ServicesPage() {
             return {
               ...old,
               services: old.services.map((s) =>
-                s.id === serviceId ? { ...s, alertsEnabled: !currentValue } : s
+                s.id === serviceId ? { ...s, alertsEnabled: !currentValue } : s,
               ),
             };
-          }
+          },
         );
       }
 

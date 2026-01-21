@@ -56,13 +56,6 @@ export async function updateLastLogin(userId: string): Promise<void> {
     .updateOne({ id: userId }, { $set: { lastLoginAt: new Date() } });
 }
 
-// Get or create user (for OTP login)
-// NOTE: This now only GETS users, doesn't create them
-// Users must be created by admin first
-export async function getOrCreateUser(email: string): Promise<User | null> {
-  return getUserByEmail(email);
-}
-
 // Get all users (admin only)
 export async function getAllUsers(): Promise<User[]> {
   const db = await getDatabase();
@@ -78,7 +71,7 @@ export async function getAllUsers(): Promise<User[]> {
 // Create user by admin
 export async function createUserByAdmin(
   email: string,
-  role: "admin" | "viewer" = "viewer"
+  role: "admin" | "viewer" = "viewer",
 ): Promise<User> {
   const db = await getDatabase();
 
@@ -114,7 +107,7 @@ export async function deleteUser(userId: string): Promise<boolean> {
 // Update user role
 export async function updateUserRole(
   userId: string,
-  role: "admin" | "viewer"
+  role: "admin" | "viewer",
 ): Promise<User | null> {
   const db = await getDatabase();
   const result = await db
@@ -122,7 +115,7 @@ export async function updateUserRole(
     .findOneAndUpdate(
       { id: userId },
       { $set: { role } },
-      { returnDocument: "after" }
+      { returnDocument: "after" },
     );
 
   return result || null;

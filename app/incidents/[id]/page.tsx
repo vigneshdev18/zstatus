@@ -37,10 +37,10 @@ export default async function IncidentDetailPage({
   const duration = incident.duration
     ? Math.round(incident.duration / 1000)
     : incident.endTime
-    ? Math.round(
-        (incident.endTime.getTime() - incident.startTime.getTime()) / 1000
-      )
-    : null;
+      ? Math.round(
+          (incident.endTime.getTime() - incident.startTime.getTime()) / 1000,
+        )
+      : null;
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
@@ -142,7 +142,7 @@ export default async function IncidentDetailPage({
             Incident Timeline
           </h2>
           <IncidentTimeline
-            primaryIncident={incident}
+            incident={incident}
             correlatedIncidents={correlatedIncidents}
           />
         </div>

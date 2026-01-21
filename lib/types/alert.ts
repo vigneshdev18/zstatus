@@ -19,10 +19,10 @@ export type AlertStatus = "PENDING" | "SENT" | "FAILED";
 // Alert interface
 export interface Alert {
   _id: ObjectId;
-  id: string; // UUID
-  incidentId?: string; // Reference to incident
-  serviceId: string; // Service that triggered the alert
-  serviceName: string; // Denormalized
+  id: string;
+  incidentId?: string;
+  serviceId: string;
+  serviceName: string;
   type: AlertType;
   severity: AlertSeverity;
   title: string;
@@ -38,7 +38,7 @@ export interface Alert {
 // Maintenance window interface
 export interface MaintenanceWindow {
   _id: ObjectId;
-  id: string; // UUID
+  id: string;
   serviceId: string;
   serviceName: string;
   startTime: Date;

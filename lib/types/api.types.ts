@@ -1,6 +1,8 @@
 // API Response Type Definitions
 // This file defines the shape of all API responses for type-safe API calls
 
+import { PaginationMetadata } from "@/lib/utils/pagination";
+
 interface Service {
   id: string;
   name: string;
@@ -21,6 +23,11 @@ interface Service {
 
   // Elasticsearch specific
   esConnectionString?: string;
+  esIndex?: string;
+  esQuery?: string;
+  esUsername?: string;
+  esPassword?: string;
+  esApiKey?: string;
 
   // Redis specific
   redisConnectionString?: string;
@@ -42,6 +49,14 @@ interface Service {
   responseTimeWarningAttempts?: number;
   responseTimeCriticalMs?: number;
   responseTimeCriticalAttempts?: number;
+
+  // Retry configuration
+  maxRetries?: number;
+  retryDelayMs?: number;
+
+  // Connection pooling
+  connectionPoolEnabled?: boolean;
+  connectionPoolSize?: number;
 
   // Status tracking
   lastStatus?: "UP" | "DOWN";
@@ -69,6 +84,22 @@ interface HealthCheck {
   errorMessage?: string;
 }
 
+interface Alert {
+  id: string;
+  incidentId?: string;
+  serviceId: string;
+  serviceName: string;
+  type: string;
+  severity: "INFO" | "WARNING" | "CRITICAL";
+  title: string;
+  message: string;
+  status: "PENDING" | "SENT" | "FAILED";
+  channels: string[];
+  sentAt?: string;
+  errorMessage?: string;
+  createdAt: string;
+}
+
 interface Settings {
   globalHealthChecksEnabled: boolean;
   globalAlertsEnabled: boolean;
@@ -85,8 +116,10 @@ interface Group {
 
 interface User {
   id: string;
-  username: string;
-  role: "ADMIN" | "VIEWER";
+  email: string;
+  role: "admin" | "viewer";
+  createdAt: string;
+  lastLoginAt: string;
 }
 
 // API Response Map
@@ -101,6 +134,9 @@ export type ApiResponseMap = {
     PUT: Service;
     DELETE: { success: boolean };
   };
+  "/api/services/[id]/check": {
+    POST: { success: boolean };
+  };
   "/api/incidents": {
     GET: { incidents: Incident[] };
     POST: Incident;
@@ -111,7 +147,16 @@ export type ApiResponseMap = {
     DELETE: { success: boolean };
   };
   "/api/healthchecks": {
-    GET: { healthChecks: HealthCheck[] };
+    GET: {
+      healthChecks: HealthCheck[];
+      pagination: PaginationMetadata;
+    };
+  };
+  "/api/alerts": {
+    GET: {
+      alerts: Alert[];
+      pagination: PaginationMetadata;
+    };
   };
   "/api/settings": {
     GET: { settings: Settings };
@@ -134,6 +179,14 @@ export type ApiResponseMap = {
     PATCH: User;
     DELETE: { success: boolean };
   };
+  "/api/users": {
+    GET: { users: User[] };
+    POST: User;
+  };
+  "/api/users/[id]": {
+    PATCH: User;
+    DELETE: { success: boolean };
+  };
   "/api/auth/login": {
     POST: { user: User };
   };
@@ -149,13 +202,13 @@ export type GetResponse<TUrl extends keyof ApiResponseMap> =
 // Helper type to extract response type for a given URL and method
 export type ApiResponse<
   TUrl extends keyof ApiResponseMap,
-  TMethod extends keyof ApiResponseMap[TUrl]
+  TMethod extends keyof ApiResponseMap[TUrl],
 > = ApiResponseMap[TUrl][TMethod];
 
 // Helper type to check if a URL supports a specific method
 export type SupportsMethod<
   TUrl extends keyof ApiResponseMap,
-  TMethod extends string
+  TMethod extends string,
 > = TMethod extends keyof ApiResponseMap[TUrl] ? TUrl : never;
 
 // Export individual types for use in components

@@ -1,9 +1,10 @@
 import { SignJWT, jwtVerify } from "jose";
 import { User } from "@/lib/db/users";
 import { NextRequest } from "next/server";
+import { isProduction, TOKEN_KEY } from "../constants/app.constants";
 
 const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "fallback-secret-change-in-production"
+  process.env.JWT_SECRET || "fallback-secret-change-in-production",
 );
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
 
@@ -47,7 +48,7 @@ export async function generateToken(user: User): Promise<string> {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(
-      Math.floor(Date.now() / 1000) + getExpiryInSeconds(JWT_EXPIRES_IN)
+      Math.floor(Date.now() / 1000) + getExpiryInSeconds(JWT_EXPIRES_IN),
     )
     .sign(JWT_SECRET);
 
@@ -67,9 +68,9 @@ export async function verifyToken(token: string): Promise<AuthPayload | null> {
 
 // Get authenticated user from request
 export async function getAuthUser(
-  request: NextRequest
+  request: NextRequest,
 ): Promise<AuthPayload | null> {
-  const token = request.cookies.get("auth_token")?.value;
+  const token = request.cookies.get(TOKEN_KEY)?.value;
 
   if (!token) {
     return null;
@@ -82,7 +83,7 @@ export async function getAuthUser(
 export function getAuthCookieOptions() {
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: isProduction,
     sameSite: "lax" as const,
     maxAge: getExpiryInSeconds(JWT_EXPIRES_IN),
     path: "/",

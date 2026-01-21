@@ -36,16 +36,14 @@ export interface Service {
   requestBody?: string; // Request body for POST/PUT
 
   // MongoDB specific fields
-  mongoConnectionString?: string; // MongoDB connection string
   mongoDatabase?: string; // Database to test
   mongoPipelines?: MongoDBPipeline[]; // Array of pipelines to execute
 
   // Elasticsearch specific fields
-  esConnectionString?: string; // Elasticsearch URL
+  esIndex?: string; // Index to search (optional)
+  esQuery?: string; // JSON query body (optional)
 
   // Redis specific fields
-  redisConnectionString?: string; // Redis connection URL (redis://host:port)
-  redisPassword?: string; // Optional password for authentication
   redisDatabase?: number; // Optional database number (default: 0)
   redisOperations?: RedisOperation[]; // Array of operations to execute
   redisKeys?: string[]; // Array of keys to test with read/write operations
@@ -71,6 +69,14 @@ export interface Service {
   lastAlertType?: string; // Type of last alert sent (e.g., "INCIDENT_OPENED", "RESPONSE_TIME")
   lastAlertSentAt?: Date; // Timestamp of last alert sent
 
+  // Retry configuration (applies to all service types)
+  maxRetries?: number; // Maximum number of retry attempts (default: 2)
+  retryDelayMs?: number; // Initial delay between retries in milliseconds (default: 1000)
+
+  // Connection pooling (for MongoDB and Redis)
+  connectionPoolEnabled?: boolean; // Enable connection pooling (default: false)
+  connectionPoolSize?: number; // Maximum pool size (default: 5)
+
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date; // Soft delete timestamp
@@ -90,16 +96,14 @@ export interface CreateServiceInput {
   requestBody?: string;
 
   // MongoDB fields
-  mongoConnectionString?: string;
   mongoDatabase?: string;
   mongoPipelines?: MongoDBPipeline[];
 
   // Elasticsearch fields
-  esConnectionString?: string;
+  esIndex?: string;
+  esQuery?: string;
 
   // Redis fields
-  redisConnectionString?: string;
-  redisPassword?: string;
   redisDatabase?: number;
   redisOperations?: RedisOperation[];
   redisKeys?: string[];
@@ -118,6 +122,14 @@ export interface CreateServiceInput {
   responseTimeWarningAttempts?: number;
   responseTimeCriticalMs?: number;
   responseTimeCriticalAttempts?: number;
+
+  // Retry configuration
+  maxRetries?: number;
+  retryDelayMs?: number;
+
+  // Connection pooling
+  connectionPoolEnabled?: boolean;
+  connectionPoolSize?: number;
 }
 
 // DTO for updating a service
@@ -133,16 +145,14 @@ export interface UpdateServiceInput {
   requestBody?: string;
 
   // MongoDB fields
-  mongoConnectionString?: string;
   mongoDatabase?: string;
   mongoPipelines?: MongoDBPipeline[];
 
   // Elasticsearch fields
-  esConnectionString?: string;
+  esIndex?: string;
+  esQuery?: string;
 
   // Redis fields
-  redisConnectionString?: string;
-  redisPassword?: string;
   redisDatabase?: number;
   redisOperations?: RedisOperation[];
   redisKeys?: string[];
@@ -163,4 +173,16 @@ export interface UpdateServiceInput {
   responseTimeCriticalAttempts?: number;
   consecutiveSlowWarning?: number;
   consecutiveSlowCritical?: number;
+
+  // Last alert tracking
+  lastAlertType?: string;
+  lastAlertSentAt?: Date;
+
+  // Retry configuration
+  maxRetries?: number;
+  retryDelayMs?: number;
+
+  // Connection pooling
+  connectionPoolEnabled?: boolean;
+  connectionPoolSize?: number;
 }

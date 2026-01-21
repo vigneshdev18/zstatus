@@ -18,10 +18,7 @@ export default function AddUserModal({
   const [role, setRole] = useState<"admin" | "viewer">("viewer");
   const [error, setError] = useState("");
 
-  const createUserMutation = useApiMutation<
-    any,
-    { email: string; role: string }
-  >({
+  const createUserMutation = useApiMutation({
     url: "/api/users",
     method: "POST",
     options: {
@@ -106,10 +103,10 @@ export default function AddUserModal({
             </button>
             <button
               type="submit"
-              disabled={createUserMutation.isLoading}
+              disabled={createUserMutation.isPending}
               className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-medium hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
-              {createUserMutation.isLoading ? "Creating..." : "Add User"}
+              {createUserMutation.isPending ? "Creating..." : "Add User"}
             </button>
           </div>
         </form>

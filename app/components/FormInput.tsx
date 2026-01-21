@@ -1,6 +1,7 @@
 import InputField from "./Input/Input";
-import { FieldValues, RegisterOptions, useFormContext } from "react-hook-form";
-import { InputFieldProps } from "@/types/components.inputs";
+import React from "react";
+import { FieldValues, useFormContext, RegisterOptions } from "react-hook-form";
+import { InputFieldProps } from "@/lib/types/components.inputs";
 
 const FormInput = ({
   options,

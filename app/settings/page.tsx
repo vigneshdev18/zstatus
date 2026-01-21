@@ -9,18 +9,16 @@ import PageHeader from "../components/PageHeader";
 import InputField from "../components/Input/Input";
 
 interface Settings {
-  globalAlertsEnabled: boolean;
-  globalHealthChecksEnabled: boolean;
-  alertCooldownMinutes: number;
+  globalAlertsEnabled?: boolean;
+  globalHealthChecksEnabled?: boolean;
+  alertCooldownMinutes?: number;
 }
 
 export default function SettingsPage() {
   const [alertCooldownMinutes, setAlertCooldownMinutes] = useState(5);
 
   // Fetch settings using useApiQuery
-  const { data: settingsResponse, isLoading } = useApiQuery<{
-    settings: Settings;
-  }>("/api/settings");
+  const { data: settingsResponse, isLoading } = useApiQuery("/api/settings");
 
   const settings = settingsResponse?.settings;
 
@@ -32,7 +30,7 @@ export default function SettingsPage() {
   }, [settings]);
 
   // Mutation for updating settings
-  const updateSettings = useApiMutation<Settings, Partial<Settings>>({
+  const updateSettings = useApiMutation({
     url: "/api/settings",
     method: "PATCH",
     invalidateQueries: [["api", "/api/settings"]],

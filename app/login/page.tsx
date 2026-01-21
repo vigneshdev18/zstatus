@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import OTPInput from "@/app/components/OTPInput";
 import { HiMail, HiArrowLeft } from "react-icons/hi";
@@ -8,7 +8,7 @@ import apiClient from "@/lib/api/client";
 
 type Step = "email" | "otp";
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") || "/";
@@ -24,7 +24,7 @@ export default function LoginPage() {
     if (resendCountdown > 0) {
       const timer = setTimeout(
         () => setResendCountdown(resendCountdown - 1),
-        1000
+        1000,
       );
       return () => clearTimeout(timer);
     }
@@ -187,5 +187,19 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900">
+          <div className="text-white">Loading...</div>
+        </div>
+      }
+    >
+      <LoginPageContent />
+    </Suspense>
   );
 }

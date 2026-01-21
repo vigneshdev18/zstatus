@@ -25,15 +25,6 @@ export interface PaginationProps {
  * @param pageSizeOptions - Available page size options (default: [10, 20, 50, 100])
  * @param showPageNumbers - Whether to show numbered pages (default: true)
  * @param maxPageNumbers - Maximum page numbers to show before adding ellipsis (default: 7)
- *
- * @example
- * <Pagination
- *   currentPage={page}
- *   totalPages={data?.pagination.totalPages || 1}
- *   onPageChange={setPage}
- *   pageSize={pageSize}
- *   onPageSizeChange={setPageSize}
- * />
  */
 export function Pagination({
   currentPage,

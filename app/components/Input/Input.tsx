@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils/cn";
 import { ChangeEvent, forwardRef } from "react";
 import InputLabel from "./InputLabel";
-import { InputFieldProps } from "@/types/components.inputs";
+import { InputFieldProps } from "@/lib/types/components.inputs";
 import InputError from "./InputError";
 
 const InputField = forwardRef<
@@ -25,12 +25,12 @@ const InputField = forwardRef<
       rows = 3,
       ...props
     },
-    ref
+    ref,
   ) => {
     const isUncontrolled = !("value" in props);
 
     const _onChangeWrapper = (
-      event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+      event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
     ) => {
       if (!onChange) return;
 
@@ -46,7 +46,7 @@ const InputField = forwardRef<
     };
 
     const onKeyDownOnNumber = (
-      event: React.KeyboardEvent<HTMLInputElement>
+      event: React.KeyboardEvent<HTMLInputElement>,
     ) => {
       const ignorableKeys = ["+", "-", ".", "E", "e"];
       if (ignorableKeys.includes(event.key)) {
@@ -59,7 +59,7 @@ const InputField = forwardRef<
       // "w-full px-4 py-3 bg-white/5 border rounded-xl text-white placeholder-gray-500 transition-smooth focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent",
       className,
       error ? "border-red-500" : "border-white/10",
-      props.disabled && "cursor-not-allowed opacity-50"
+      props.disabled && "cursor-not-allowed opacity-50",
     );
 
     return (
@@ -79,7 +79,7 @@ const InputField = forwardRef<
         <div
           className={cn(
             "flex flex-row items-center justify-start w-full relative",
-            inputContainerClassName
+            inputContainerClassName,
           )}
         >
           {as === "textarea" ? (
@@ -125,7 +125,7 @@ const InputField = forwardRef<
         )}
       </div>
     );
-  }
+  },
 );
 
 InputField.displayName = "InputField";

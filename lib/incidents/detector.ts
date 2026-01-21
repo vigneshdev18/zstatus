@@ -137,15 +137,23 @@ export async function detectIncident(
 
   // DOWN → UP transition (recovery)
   else if (lastStatus === "DOWN" && currentStatus === "UP") {
+    console.log(`[Incident] Detected DOWN → UP transition for ${serviceName}`);
+
     // Close the active incident
     const incident = await getActiveIncident(serviceId);
+
     if (incident) {
+      console.log(
+        `[Incident] Found active incident ${incident.id} for ${serviceName}, closing...`
+      );
+
       const closedIncident = await closeIncident(incident.id, timestamp);
       const duration = timestamp.getTime() - incident.startTime.getTime();
+
       console.log(
         `[Incident] CLOSED for ${serviceName} (Duration: ${Math.round(
           duration / 1000
-        )}s)`
+        )}s, Failed Checks: ${incident.failedChecks})`
       );
 
       // Send recovery alert
@@ -157,6 +165,10 @@ export async function detectIncident(
           duration
         );
       }
+    } else {
+      console.warn(
+        `[Incident] WARNING: Service ${serviceName} recovered (DOWN → UP) but no active incident found!`
+      );
     }
   }
 

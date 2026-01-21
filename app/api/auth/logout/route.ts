@@ -1,3 +1,4 @@
+import { TOKEN_KEY } from "@/lib/constants/app.constants";
 import { NextResponse } from "next/server";
 
 export async function POST() {
@@ -8,14 +9,14 @@ export async function POST() {
     });
 
     // Clear auth cookie
-    response.cookies.delete("auth_token");
+    response.cookies.delete(TOKEN_KEY);
 
     return response;
   } catch (error) {
     console.error("[API] Error in logout:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

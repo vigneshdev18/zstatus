@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServiceById } from "@/lib/db/services";
+import { getServiceById, getServiceWithSecrets } from "@/lib/db/services";
 import { createHealthCheck } from "@/lib/db/healthchecks";
 import { runHealthCheck } from "@/lib/healthcheck/runner";
 import { detectIncident } from "@/lib/incidents/detector";
@@ -7,15 +7,18 @@ import { updateServiceStatus } from "@/lib/db/service-status";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
-    const service = await getServiceById(id);
+    // Use getServiceWithSecrets to include credentials
+    const serviceWithSecrets = await getServiceWithSecrets(id);
 
-    if (!service) {
+    if (!serviceWithSecrets) {
       return NextResponse.json({ error: "Service not found" }, { status: 404 });
     }
+
+    const service = serviceWithSecrets;
 
     // Build config based on service type
     const config: any = {
@@ -33,9 +36,17 @@ export async function POST(
         config.mongoConnectionString = service.mongoConnectionString;
         config.mongoDatabase = service.mongoDatabase;
         config.mongoPipelines = service.mongoPipelines;
+        config.maxRetries = service.maxRetries;
+        config.retryDelayMs = service.retryDelayMs;
+        config.useConnectionPool = service.connectionPoolEnabled;
         break;
       case "elasticsearch":
         config.esConnectionString = service.esConnectionString;
+        config.esIndex = service.esIndex;
+        config.esQuery = service.esQuery;
+        config.esUsername = service.esUsername;
+        config.esPassword = service.esPassword;
+        config.esApiKey = service.esApiKey;
         break;
       case "redis":
         config.redisConnectionString = service.redisConnectionString;
@@ -43,6 +54,9 @@ export async function POST(
         config.redisDatabase = service.redisDatabase;
         config.redisOperations = service.redisOperations;
         config.redisKeys = service.redisKeys;
+        config.maxRetries = service.maxRetries;
+        config.retryDelayMs = service.retryDelayMs;
+        config.useConnectionPool = service.connectionPoolEnabled;
         break;
     }
 
@@ -56,7 +70,9 @@ export async function POST(
       result.status,
       result.responseTime,
       result.statusCode,
-      result.errorMessage
+      result.errorMessage,
+      result.errorType,
+      result.metrics,
     );
 
     // Detect incidents based on state transitions
@@ -65,7 +81,7 @@ export async function POST(
       service.name,
       result.status,
       service.lastStatus || null,
-      timestamp
+      timestamp,
     );
 
     // Update service last status
@@ -84,7 +100,7 @@ export async function POST(
       {
         error: error instanceof Error ? error.message : "Health check failed",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

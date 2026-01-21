@@ -5,29 +5,20 @@ import { useApiQuery, useApiMutation } from "@/lib/hooks";
 import Loading from "@/app/components/Loading";
 import { HiTrash, HiPlus, HiUserCircle } from "react-icons/hi";
 import AddUserModal from "@/app/components/AddUserModal";
-
-interface User {
-  id: string;
-  email: string;
-  role: "admin" | "viewer";
-  createdAt: string;
-  lastLoginAt: string;
-}
+import Spinner from "@/app/components/Spinner";
 
 export default function UsersPage() {
   const [showAddModal, setShowAddModal] = useState(false);
 
   // Fetch users
-  const { data, isLoading, refetch } = useApiQuery<{ users: User[] }>(
-    "/api/users"
-  );
+  const { data, isLoading, refetch } = useApiQuery<"/api/users">("/api/users");
   const users = data?.users || [];
 
   // Delete user mutation
-  const deleteUserMutation = useApiMutation<void, void>({
-    url: "/api/users",
+  const deleteUserMutation = useApiMutation({
+    url: "/api/users/[id]" as any,
     method: "DELETE",
-    invalidateQueries: [["/api/users"]],
+    invalidateQueries: [["api", "/api/users"]],
     options: {
       onSuccess: () => {
         refetch();
@@ -37,7 +28,7 @@ export default function UsersPage() {
 
   const handleDeleteUser = async (userId: string, email: string) => {
     if (confirm(`Are you sure you want to delete user ${email}?`)) {
-      deleteUserMutation.mutate(undefined, { url: `/api/users/${userId}` });
+      deleteUserMutation.mutate({ url: `/api/users/${userId}` } as any);
     }
   };
 
@@ -128,10 +119,15 @@ export default function UsersPage() {
                   <td className="p-4 text-right">
                     <button
                       onClick={() => handleDeleteUser(user.id, user.email)}
-                      className="p-2 rounded-lg hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-all"
+                      disabled={deleteUserMutation.isPending}
+                      className="p-2 rounded-lg hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Delete user"
                     >
-                      <HiTrash className="w-5 h-5" />
+                      {deleteUserMutation.isPending ? (
+                        <Spinner />
+                      ) : (
+                        <HiTrash className="w-5 h-5" />
+                      )}
                     </button>
                   </td>
                 </tr>

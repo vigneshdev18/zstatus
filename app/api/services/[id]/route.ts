@@ -3,22 +3,27 @@ import {
   getServiceById,
   updateService,
   deleteService,
+  getServiceWithSecrets,
 } from "@/lib/db/services";
+import { updateServiceSecrets } from "@/lib/db/service-secrets";
 import { UpdateServiceInput, Service } from "@/lib/types/service";
 import { requireAdmin } from "@/lib/auth/permissions";
 
 // GET /api/services/[id] - Get single service
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
-    const service = await getServiceById(id);
+    const service = await getServiceWithSecrets(id);
 
     if (!service) {
       return NextResponse.json({ error: "Service not found" }, { status: 404 });
     }
+
+    // Mask secrets for API response
+    const maskSecret = (val?: string) => (val ? "********" : undefined);
 
     return NextResponse.json({
       service: {
@@ -35,16 +40,21 @@ export async function GET(
         requestBody: service.requestBody,
 
         // MongoDB fields
-        mongoConnectionString: service.mongoConnectionString,
+        mongoConnectionString: maskSecret(service.mongoConnectionString),
         mongoDatabase: service.mongoDatabase,
         mongoPipelines: service.mongoPipelines,
 
         // Elasticsearch fields
-        esConnectionString: service.esConnectionString,
+        esConnectionString: maskSecret(service.esConnectionString),
+        esIndex: service.esIndex,
+        esQuery: service.esQuery,
+        esUsername: maskSecret(service.esUsername),
+        esPassword: maskSecret(service.esPassword),
+        esApiKey: maskSecret(service.esApiKey),
 
-        // Redis fields
-        redisConnectionString: service.redisConnectionString,
-        redisPassword: service.redisPassword,
+        // Redis fieldsk
+        redisConnectionString: maskSecret(service.redisConnectionString),
+        redisPassword: maskSecret(service.redisPassword),
         redisDatabase: service.redisDatabase,
         redisOperations: service.redisOperations,
         redisKeys: service.redisKeys,
@@ -70,6 +80,14 @@ export async function GET(
         responseTimeCriticalMs: service.responseTimeCriticalMs,
         responseTimeCriticalAttempts: service.responseTimeCriticalAttempts,
 
+        // Retry configuration
+        maxRetries: service.maxRetries,
+        retryDelayMs: service.retryDelayMs,
+
+        // Connection pooling
+        connectionPoolEnabled: service.connectionPoolEnabled,
+        connectionPoolSize: service.connectionPoolSize,
+
         createdAt: service.createdAt.toISOString(),
         updatedAt: service.updatedAt.toISOString(),
       },
@@ -78,7 +96,7 @@ export async function GET(
     console.error("[API] Error fetching service:", error);
     return NextResponse.json(
       { error: "Failed to fetch service" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -86,7 +104,7 @@ export async function GET(
 // PUT /api/services/[id] - Update service (Admin only)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     // Check admin permission
@@ -105,14 +123,12 @@ export async function PUT(
       httpMethod: body.httpMethod,
       requestHeaders: body.requestHeaders,
       requestBody: body.requestBody,
-      mongoConnectionString: body.mongoConnectionString,
       mongoDatabase: body.mongoDatabase,
       mongoPipelines: body.mongoPipelines,
-      esConnectionString: body.esConnectionString,
+      esIndex: body.esIndex,
+      esQuery: body.esQuery,
 
       // Redis fields
-      redisConnectionString: body.redisConnectionString,
-      redisPassword: body.redisPassword,
       redisDatabase: body.redisDatabase,
       redisOperations: body.redisOperations,
       redisKeys: body.redisKeys,
@@ -130,7 +146,30 @@ export async function PUT(
       responseTimeWarningAttempts: body.responseTimeWarningAttempts,
       responseTimeCriticalMs: body.responseTimeCriticalMs,
       responseTimeCriticalAttempts: body.responseTimeCriticalAttempts,
+
+      // Retry configuration
+      maxRetries: body.maxRetries,
+      retryDelayMs: body.retryDelayMs,
+
+      // Connection pooling
+      connectionPoolEnabled: body.connectionPoolEnabled,
+      connectionPoolSize: body.connectionPoolSize,
     };
+
+    // Extract and update secrets
+    const secrets = {
+      mongoConnectionString: body.mongoConnectionString,
+      esConnectionString: body.esConnectionString,
+      esUsername: body.esUsername,
+      esPassword: body.esPassword,
+      esApiKey: body.esApiKey,
+      redisConnectionString: body.redisConnectionString,
+      redisPassword: body.redisPassword,
+    };
+
+    if (Object.values(secrets).some((v) => v !== undefined)) {
+      await updateServiceSecrets(id, secrets);
+    }
 
     // Validate response time thresholds
     if (
@@ -142,7 +181,7 @@ export async function PUT(
         {
           error: "Warning threshold must be less than critical threshold",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -153,7 +192,7 @@ export async function PUT(
     ) {
       return NextResponse.json(
         { error: "Warning attempts must be at least 1" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -163,8 +202,38 @@ export async function PUT(
     ) {
       return NextResponse.json(
         { error: "Critical attempts must be at least 1" },
-        { status: 400 }
+        { status: 400 },
       );
+    }
+
+    // Invalidate pooled connections if connection details changed
+    // This prevents using stale connections after configuration updates
+    // Invalidate pooled connections if connection details changed
+    // This prevents using stale connections after configuration updates
+    if (updateData.connectionPoolEnabled) {
+      const { getServiceWithSecrets } = await import("@/lib/db/services");
+      const oldService = await getServiceWithSecrets(id);
+
+      if (oldService) {
+        const { connectionPool } =
+          await import("@/lib/healthcheck/connection-pool");
+
+        await connectionPool.invalidateServiceConnections(
+          oldService.serviceType,
+          {
+            mongoConnectionString: oldService.mongoConnectionString,
+            redisConnectionString: oldService.redisConnectionString,
+            redisDatabase: oldService.redisDatabase,
+          },
+          {
+            mongoConnectionString:
+              secrets.mongoConnectionString || oldService.mongoConnectionString,
+            redisConnectionString:
+              secrets.redisConnectionString || oldService.redisConnectionString,
+            redisDatabase: updateData.redisDatabase,
+          },
+        );
+      }
     }
 
     const service = await updateService(id, updateData);
@@ -188,7 +257,7 @@ export async function PUT(
     console.error("[API] Error updating service:", error);
     return NextResponse.json(
       { error: "Failed to update service" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -196,13 +265,31 @@ export async function PUT(
 // DELETE /api/services/[id] - Delete service (Admin only)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     // Check admin permission
     await requireAdmin(request);
 
     const { id } = await params;
+
+    // Clean up pooled connections before deleting the service
+    // Clean up pooled connections before deleting the service
+    const { getServiceWithSecrets } = await import("@/lib/db/services");
+    const service = await getServiceWithSecrets(id);
+
+    if (service && service.connectionPoolEnabled) {
+      const { connectionPool } =
+        await import("@/lib/healthcheck/connection-pool");
+
+      // Remove all connections for this service
+      await connectionPool.invalidateServiceConnections(service.serviceType, {
+        mongoConnectionString: service.mongoConnectionString,
+        redisConnectionString: service.redisConnectionString,
+        redisDatabase: service.redisDatabase,
+      });
+    }
+
     const deleted = await deleteService(id);
 
     if (!deleted) {
@@ -214,7 +301,7 @@ export async function DELETE(
     console.error("[API] Error deleting service:", error);
     return NextResponse.json(
       { error: "Failed to delete service" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

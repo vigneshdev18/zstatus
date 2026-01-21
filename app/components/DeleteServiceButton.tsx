@@ -15,8 +15,8 @@ export default function DeleteServiceButton({ serviceId, serviceName }: Props) {
   const router = useRouter();
   const [error, setError] = useState("");
 
-  const deleteService = useApiMutation<void, void>({
-    url: `/api/services/${serviceId}`,
+  const deleteService = useApiMutation({
+    url: `/api/services/${serviceId}` as "/api/services/[id]",
     method: "DELETE",
     invalidateQueries: [["api", "/api/services"]],
     options: {
@@ -37,7 +37,7 @@ export default function DeleteServiceButton({ serviceId, serviceName }: Props) {
       return;
     }
 
-    deleteService.mutate(undefined);
+    deleteService.mutate({} as any);
   };
 
   return (
@@ -47,7 +47,7 @@ export default function DeleteServiceButton({ serviceId, serviceName }: Props) {
         onClick={handleDelete}
         loading={deleteService.isPending}
         variant="danger"
-        icon={<HiTrash />}
+        leftIcon={<HiTrash />}
       >
         {deleteService.isPending ? "Deleting..." : "Delete Service"}
       </Button>

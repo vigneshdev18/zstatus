@@ -40,7 +40,7 @@ export async function GET() {
     console.error("[API] Error fetching services:", error);
     return NextResponse.json(
       { error: "Failed to fetch services" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     if (!body.name || !body.serviceType) {
       return NextResponse.json(
         { error: "Missing required fields: name, serviceType" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -72,14 +72,12 @@ export async function POST(request: NextRequest) {
       httpMethod: body.httpMethod,
       requestHeaders: body.requestHeaders,
       requestBody: body.requestBody,
-      mongoConnectionString: body.mongoConnectionString,
       mongoDatabase: body.mongoDatabase,
       mongoPipelines: body.mongoPipelines,
-      esConnectionString: body.esConnectionString,
+      esIndex: body.esIndex,
+      esQuery: body.esQuery,
 
       // Redis fields
-      redisConnectionString: body.redisConnectionString,
-      redisPassword: body.redisPassword,
       redisDatabase: body.redisDatabase,
       redisOperations: body.redisOperations,
 
@@ -97,6 +95,25 @@ export async function POST(request: NextRequest) {
       responseTimeWarningAttempts: body.responseTimeWarningAttempts,
       responseTimeCriticalMs: body.responseTimeCriticalMs,
       responseTimeCriticalAttempts: body.responseTimeCriticalAttempts,
+
+      // Retry configuration
+      maxRetries: body.maxRetries,
+      retryDelayMs: body.retryDelayMs,
+
+      // Connection pooling
+      connectionPoolEnabled: body.connectionPoolEnabled,
+      connectionPoolSize: body.connectionPoolSize,
+    };
+
+    // Extract secrets
+    const secrets = {
+      mongoConnectionString: body.mongoConnectionString,
+      esConnectionString: body.esConnectionString,
+      esUsername: body.esUsername,
+      esPassword: body.esPassword,
+      esApiKey: body.esApiKey,
+      redisConnectionString: body.redisConnectionString,
+      redisPassword: body.redisPassword,
     };
 
     // Validate response time thresholds
@@ -109,7 +126,7 @@ export async function POST(request: NextRequest) {
         {
           error: "Warning threshold must be less than critical threshold",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -120,7 +137,7 @@ export async function POST(request: NextRequest) {
     ) {
       return NextResponse.json(
         { error: "Warning attempts must be at least 1" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -130,12 +147,12 @@ export async function POST(request: NextRequest) {
     ) {
       return NextResponse.json(
         { error: "Critical attempts must be at least 1" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Create service
-    const service = await createService(data);
+    const service = await createService(data, secrets);
 
     return NextResponse.json(
       {
@@ -149,13 +166,13 @@ export async function POST(request: NextRequest) {
           updatedAt: service.updatedAt.toISOString(),
         },
       },
-      { status: 201 }
+      { status: 201 },
     );
   } catch (error) {
     console.error("[API] Error creating service:", error);
     return NextResponse.json(
       { error: "Failed to create service" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

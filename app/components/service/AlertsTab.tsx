@@ -56,29 +56,28 @@ export default function AlertsTab({ serviceId }: AlertsTabProps) {
   };
 
   // Memoize filter params to prevent unnecessary re-renders
-  const filterParams = useMemo(() => {
-    const params = new URLSearchParams();
+  const queryParams = useMemo(() => {
+    const params: Record<string, string | number | undefined> = {
+      serviceId,
+      page: alertsPage,
+      pageSize: alertsPageSize,
+    };
+
     if (severity !== "all") {
-      params.set("severity", severity);
+      params.severity = severity;
     }
     if (alertType !== "all") {
-      params.set("type", alertType);
+      params.type = alertType;
     }
-    return params.toString();
-  }, [severity, alertType]);
 
-  // Memoize alerts query to prevent API loops
-  const alertsQuery = useMemo(
-    () =>
-      `/api/alerts?serviceId=${serviceId}&page=${alertsPage}&pageSize=${alertsPageSize}${
-        filterParams ? `&${filterParams}` : ""
-      }`,
-    [serviceId, alertsPage, alertsPageSize, filterParams]
-  );
+    return params;
+  }, [serviceId, alertsPage, alertsPageSize, severity, alertType]);
 
   // Fetch paginated alerts
   const { data: alertsData, isLoading: alertsLoading } =
-    useApiQuery<AlertsResponse>(alertsQuery);
+    useApiQuery<"/api/alerts">("/api/alerts", {
+      params: queryParams,
+    });
 
   const alerts = alertsData?.alerts || [];
   const alertsPagination = alertsData?.pagination;

@@ -39,7 +39,7 @@ class Scheduler {
     }
 
     console.log(
-      `[Scheduler] Registering job: ${job.name} (schedule: ${job.schedule})`
+      `[Scheduler] Registering job: ${job.name} (schedule: ${job.schedule})`,
     );
 
     this.jobExecutionCounts.set(job.name, 0);
@@ -66,7 +66,7 @@ class Scheduler {
     // Validate cron expression
     if (!cron.validate(job.schedule)) {
       console.error(
-        `[Scheduler] Invalid cron expression for job ${job.name}: ${job.schedule}`
+        `[Scheduler] Invalid cron expression for job ${job.name}: ${job.schedule}`,
       );
       return;
     }

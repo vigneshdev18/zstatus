@@ -26,12 +26,12 @@ export default function MetricsCard({ serviceId }: MetricsCardProps) {
   const [timeWindow, setTimeWindow] = useState<"7d" | "30d" | "all">("30d");
 
   // Fetch metrics using useApiQuery
-  const { data: metrics, isLoading: loading } = useApiQuery<Metrics>(
-    `/api/services/${serviceId}/metrics?window=${timeWindow}`,
+  const { data: metrics, isLoading: loading } = useApiQuery(
+    `/api/services/${serviceId}/metrics?window=${timeWindow}` as any,
     {
       enabled: !!serviceId,
-    }
-  );
+    },
+  ) as { data: Metrics | undefined; isLoading: boolean };
 
   if (loading) {
     return (
@@ -49,8 +49,8 @@ export default function MetricsCard({ serviceId }: MetricsCardProps) {
     metrics.metrics.uptime.percentage >= 99.9
       ? "text-green-600 dark:text-green-400"
       : metrics.metrics.uptime.percentage >= 99
-      ? "text-yellow-600 dark:text-yellow-400"
-      : "text-red-600 dark:text-red-400";
+        ? "text-yellow-600 dark:text-yellow-400"
+        : "text-red-600 dark:text-red-400";
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">

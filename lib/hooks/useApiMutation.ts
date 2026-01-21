@@ -12,7 +12,7 @@ interface ApiMutationOptions<
   TUrl extends keyof ApiResponseMap,
   TMethod extends HttpMethod & keyof ApiResponseMap[TUrl],
   TData = ApiResponse<TUrl, TMethod>,
-  TVariables = unknown
+  TVariables = unknown,
 > {
   url: TUrl | (string & {}); // Allow string for dynamic URLs
   method: TMethod;
@@ -64,7 +64,7 @@ export function useApiMutation<
   TUrl extends keyof ApiResponseMap,
   TMethod extends HttpMethod & keyof ApiResponseMap[TUrl],
   TData = ApiResponse<TUrl, TMethod>,
-  TVariables = TData
+  TVariables = Partial<TData>,
 >({
   url,
   method,
@@ -80,35 +80,51 @@ export function useApiMutation<
   const userOnSuccess = options?.onSuccess;
 
   return useMutation<TData, Error, TVariables>({
-    mutationFn: async (variables: TVariables) => {
-      const response = await fetch(url as string, {
+    mutationFn: async (input: TVariables) => {
+      // Check if input contains a dynamic URL override
+      let requestUrl = url as string;
+      let variables = input;
+
+      if (input && typeof input === "object" && "url" in input) {
+        requestUrl = (input as any).url;
+      }
+
+      const fetchOptions: RequestInit = {
         method,
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(variables),
-      });
+      };
+
+      // Only add body for methods that support it (not DELETE or GET)
+      if (method !== "DELETE" && variables !== undefined) {
+        fetchOptions.body = JSON.stringify(variables);
+      }
+
+      const response = await fetch(requestUrl, fetchOptions);
 
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(
           `API Error: ${response.status} ${response.statusText}${
             errorText ? ` - ${errorText}` : ""
-          }`
+          }`,
         );
       }
 
       return response.json();
     },
     ...options,
-    onSuccess: (data, variables, context, mutation) => {
+    onSuccess: async (data, variables, context, mutation) => {
       // Invalidate specified queries
-      invalidateQueries.forEach((queryKey) => {
-        queryClient.invalidateQueries({ queryKey: queryKey });
-      });
+      for (const queryKey of invalidateQueries) {
+        await queryClient.invalidateQueries({ queryKey });
+      }
 
       // Call user-provided onSuccess if it exists
-      userOnSuccess?.(data, variables, context, mutation);
+      if (userOnSuccess) {
+        return userOnSuccess(data, variables, context, mutation);
+      }
     },
   });
 }

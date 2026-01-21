@@ -4,6 +4,11 @@ import {
   CreateServiceInput,
   UpdateServiceInput,
 } from "@/lib/types/service";
+import { ServiceSecret } from "@/lib/types/service-secret";
+import {
+  createServiceSecrets,
+  getServiceSecrets,
+} from "@/lib/db/service-secrets";
 import { ObjectId } from "mongodb";
 import { randomUUID } from "node:crypto";
 
@@ -11,13 +16,15 @@ const SERVICES_COLLECTION = "services";
 
 // Create a new service
 export async function createService(
-  input: CreateServiceInput
+  input: CreateServiceInput,
+  secrets: Partial<ServiceSecret> = {},
 ): Promise<Service> {
   const db = await getDatabase();
 
+  const serviceId = randomUUID();
   const service: Service = {
     _id: new ObjectId(),
-    id: randomUUID(),
+    id: serviceId,
     name: input.name,
     serviceType: input.serviceType,
     timeout: input.timeout ?? 5000, // Default 5 seconds
@@ -30,22 +37,14 @@ export async function createService(
     ...(input.requestBody && { requestBody: input.requestBody }),
 
     // MongoDB fields
-    ...(input.mongoConnectionString && {
-      mongoConnectionString: input.mongoConnectionString,
-    }),
     ...(input.mongoDatabase && { mongoDatabase: input.mongoDatabase }),
     ...(input.mongoPipelines && { mongoPipelines: input.mongoPipelines }),
 
     // Elasticsearch fields
-    ...(input.esConnectionString && {
-      esConnectionString: input.esConnectionString,
-    }),
+    ...(input.esIndex && { esIndex: input.esIndex }),
+    ...(input.esQuery && { esQuery: input.esQuery }),
 
     // Redis fields
-    ...(input.redisConnectionString && {
-      redisConnectionString: input.redisConnectionString,
-    }),
-    ...(input.redisPassword && { redisPassword: input.redisPassword }),
     ...(input.redisDatabase !== undefined && {
       redisDatabase: input.redisDatabase,
     }),
@@ -71,11 +70,25 @@ export async function createService(
     consecutiveSlowWarning: 0, // Initialize counters
     consecutiveSlowCritical: 0,
 
+    // Retry configuration with defaults
+    maxRetries: input.maxRetries ?? 2,
+    retryDelayMs: input.retryDelayMs ?? 1000,
+
+    // Connection pooling with defaults
+    connectionPoolEnabled: input.connectionPoolEnabled ?? false,
+    connectionPoolSize: input.connectionPoolSize ?? 1,
+
     createdAt: new Date(),
     updatedAt: new Date(),
   };
 
   await db.collection<Service>(SERVICES_COLLECTION).insertOne(service);
+
+  // Create secrets if provided
+  if (Object.keys(secrets).length > 0) {
+    await createServiceSecrets(serviceId, secrets);
+  }
+
   return service;
 }
 
@@ -161,10 +174,30 @@ export async function getServiceById(id: string): Promise<Service | null> {
   return service;
 }
 
+// Get service with secrets (Internal use only - e.g. health checks)
+export async function getServiceWithSecrets(
+  id: string,
+): Promise<(Service & Partial<ServiceSecret>) | null> {
+  const service = await getServiceById(id);
+  if (!service) return null;
+
+  const secrets = await getServiceSecrets(id);
+
+  if (secrets) {
+    // Merge secrets into service object
+    return {
+      ...service,
+      ...secrets,
+    };
+  }
+
+  return service;
+}
+
 // Update service
 export async function updateService(
   id: string,
-  input: UpdateServiceInput
+  input: UpdateServiceInput,
 ): Promise<Service | null> {
   const db = await getDatabase();
 
@@ -202,7 +235,7 @@ export async function deleteService(id: string): Promise<boolean> {
     .findOneAndUpdate(
       { id, deletedAt: { $exists: false } }, // Only delete if not already deleted
       { $set: { deletedAt: new Date(), updatedAt: new Date() } },
-      { returnDocument: "after" }
+      { returnDocument: "after" },
     );
 
   return result !== null;
@@ -229,7 +262,7 @@ export async function restoreService(id: string): Promise<boolean> {
     .findOneAndUpdate(
       { id, deletedAt: { $exists: true } }, // Only restore if deleted
       { $unset: { deletedAt: "" }, $set: { updatedAt: new Date() } },
-      { returnDocument: "after" }
+      { returnDocument: "after" },
     );
 
   return result !== null;

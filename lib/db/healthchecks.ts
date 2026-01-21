@@ -12,7 +12,9 @@ export async function createHealthCheck(
   status: "UP" | "DOWN",
   responseTime: number,
   statusCode?: number,
-  errorMessage?: string
+  errorMessage?: string,
+  errorType?: string,
+  metrics?: any
 ): Promise<HealthCheck> {
   const db = await getDatabase();
 
@@ -23,8 +25,10 @@ export async function createHealthCheck(
     serviceName,
     status,
     responseTime,
-    statusCode,
-    errorMessage,
+    ...(statusCode && { statusCode }),
+    ...(errorMessage && { errorMessage }),
+    ...(errorType && { errorType }),
+    ...(metrics && { metrics }),
     timestamp: new Date(),
   };
 

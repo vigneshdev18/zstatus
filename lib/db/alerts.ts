@@ -20,7 +20,7 @@ export async function createAlert(
   title: string,
   message: string,
   channels: NotificationChannel[],
-  incidentId?: string
+  incidentId?: string,
 ): Promise<Alert> {
   const db = await getDatabase();
 
@@ -56,14 +56,14 @@ export async function markAlertSent(id: string): Promise<void> {
         sentAt: new Date(),
         updatedAt: new Date(),
       },
-    }
+    },
   );
 }
 
 // Mark alert as failed
 export async function markAlertFailed(
   id: string,
-  errorMessage: string
+  errorMessage: string,
 ): Promise<void> {
   const db = await getDatabase();
 
@@ -75,7 +75,7 @@ export async function markAlertFailed(
         errorMessage,
         updatedAt: new Date(),
       },
-    }
+    },
   );
 }
 
@@ -94,7 +94,7 @@ export async function getAllAlerts(limit: number = 100): Promise<Alert[]> {
 // Get alerts by service
 export async function getAlertsByServiceId(
   serviceId: string,
-  limit: number = 50
+  limit: number = 50,
 ): Promise<Alert[]> {
   const db = await getDatabase();
 
@@ -114,7 +114,7 @@ export async function getAlertsByServiceIdPaginated(
   filters?: {
     severity?: string;
     type?: string;
-  }
+  },
 ): Promise<Alert[]> {
   const db = await getDatabase();
 
@@ -146,7 +146,7 @@ export async function countAlertsByServiceId(
   filters?: {
     severity?: string;
     type?: string;
-  }
+  },
 ): Promise<number> {
   const db = await getDatabase();
 
@@ -170,7 +170,7 @@ export async function countAlertsByServiceId(
 export async function getRecentAlerts(
   serviceId: string,
   type: AlertType,
-  minutesBack: number = 5
+  minutesBack: number = 5,
 ): Promise<Alert[]> {
   const db = await getDatabase();
   const cutoffTime = new Date(Date.now() - minutesBack * 60 * 1000);

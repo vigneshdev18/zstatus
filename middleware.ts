@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifyToken } from "@/lib/auth/jwt";
+import { TOKEN_KEY } from "./lib/constants/app.constants";
 
 // Public paths that don't require authentication
 const publicPaths = ["/login", "/api/auth/send-otp", "/api/auth/verify-otp"];
@@ -14,7 +15,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Get auth token from cookies
-  const token = request.cookies.get("auth_token")?.value;
+  const token = request.cookies.get(TOKEN_KEY)?.value;
 
   // No token - redirect to login
   if (!token) {
@@ -31,7 +32,7 @@ export async function middleware(request: NextRequest) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
     const response = NextResponse.redirect(loginUrl);
-    response.cookies.delete("auth_token");
+    response.cookies.delete(TOKEN_KEY);
     return response;
   }
 

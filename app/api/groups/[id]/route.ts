@@ -5,7 +5,7 @@ import { UpdateGroupInput } from "@/lib/types/group";
 // GET /api/groups/[id] - Get group by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -30,7 +30,7 @@ export async function GET(
     console.error("[API] Error fetching group:", error);
     return NextResponse.json(
       { error: "Failed to fetch group" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -38,7 +38,7 @@ export async function GET(
 // PUT /api/groups/[id] - Update group
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -72,7 +72,7 @@ export async function PUT(
     console.error("[API] Error updating group:", error);
     return NextResponse.json(
       { error: "Failed to update group" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -80,7 +80,7 @@ export async function PUT(
 // DELETE /api/groups/[id] - Delete group
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -95,7 +95,7 @@ export async function DELETE(
     console.error("[API] Error deleting group:", error);
     return NextResponse.json(
       { error: "Failed to delete group" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

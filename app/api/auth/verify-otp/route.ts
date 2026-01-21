@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyOTP } from "@/lib/auth/otp";
-import { getOrCreateUser, updateLastLogin } from "@/lib/db/users";
+import { getUserByEmail, updateLastLogin } from "@/lib/db/users";
 import { generateToken, getAuthCookieOptions } from "@/lib/auth/jwt";
+import { TOKEN_KEY } from "@/lib/constants/app.constants";
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,7 +13,7 @@ export async function POST(request: NextRequest) {
     if (!email || !code) {
       return NextResponse.json(
         { error: "Email and code are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -22,17 +23,17 @@ export async function POST(request: NextRequest) {
     if (!result.success) {
       return NextResponse.json(
         { error: result.error || "Verification failed" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Get or create user
-    const user = await getOrCreateUser(email);
+    const user = await getUserByEmail(email);
 
     if (!user) {
       return NextResponse.json(
         { error: "Account not found. Please contact your administrator." },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -53,14 +54,14 @@ export async function POST(request: NextRequest) {
     });
 
     // Set HTTP-only cookie
-    response.cookies.set("auth_token", token, getAuthCookieOptions());
+    response.cookies.set(TOKEN_KEY, token, getAuthCookieOptions());
 
     return response;
   } catch (error) {
     console.error("[API] Error in verify-otp:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

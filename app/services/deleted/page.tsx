@@ -32,9 +32,9 @@ export default function DeletedServicesPage() {
   const [restoringId, setRestoringId] = useState<string | null>(null);
 
   // Fetch deleted services using useApiQuery
-  const { data: deletedServicesData, isLoading } = useApiQuery<{
-    services: DeletedService[];
-  }>("/api/services/deleted");
+  const { data: deletedServicesData, isLoading } = useApiQuery(
+    "/api/services/deleted" as any,
+  ) as { data: { services: DeletedService[] } | undefined; isLoading: boolean };
 
   const services = deletedServicesData?.services || [];
 

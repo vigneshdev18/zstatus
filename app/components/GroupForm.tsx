@@ -31,7 +31,7 @@ interface GroupFormData {
   name: string;
   description?: string;
   color: string;
-  webhookUrls?: string[];
+  webhookUrls: string[];
 }
 
 // Yup validation schema
@@ -51,7 +51,7 @@ const groupSchema = yup.object({
       yup
         .string()
         .url("Must be a valid URL")
-        .required("Webhook URL is required")
+        .required("Webhook URL is required"),
     )
     .optional()
     .default([]),
@@ -67,7 +67,7 @@ export default function GroupForm({ groupId }: GroupFormProps) {
     `/api/groups/${groupId}` as "/api/groups/[id]",
     {
       enabled: isEditMode && !!groupId,
-    }
+    },
   );
 
   const group = groupData?.group;
@@ -90,10 +90,10 @@ export default function GroupForm({ groupId }: GroupFormProps) {
     formState: { errors, isSubmitting },
   } = methods;
   console.log(errors);
-  const { fields, append, remove } = useFieldArray<GroupFormData>({
-    control,
+  const { fields, append, remove } = useFieldArray({
+    control: control as any,
     name: "webhookUrls",
-  });
+  }) as any;
 
   // Reset form when group data loads
   useEffect(() => {
@@ -159,7 +159,7 @@ export default function GroupForm({ groupId }: GroupFormProps) {
   const handleDelete = async () => {
     if (
       !confirm(
-        "Are you sure you want to delete this group? Services in this group will be unassigned."
+        "Are you sure you want to delete this group? Services in this group will be unassigned.",
       )
     ) {
       return;
@@ -197,8 +197,8 @@ export default function GroupForm({ groupId }: GroupFormProps) {
       ? "Saving..."
       : "Creating..."
     : isEditMode
-    ? "Save Changes"
-    : "Create Group";
+      ? "Save Changes"
+      : "Create Group";
 
   return (
     <FormProvider {...methods}>
@@ -282,7 +282,7 @@ export default function GroupForm({ groupId }: GroupFormProps) {
             </p>
 
             <div className="space-y-3">
-              {fields.map((field, index) => (
+              {fields.map((field: any, index: number) => (
                 <div key={field.id} className="flex items-center gap-3">
                   <div className="flex-1">
                     <input
@@ -355,8 +355,8 @@ export default function GroupForm({ groupId }: GroupFormProps) {
                     ? "Saving..."
                     : "Creating..."
                   : isEditMode
-                  ? "Save Changes"
-                  : "Create Group"}
+                    ? "Save Changes"
+                    : "Create Group"}
               </Button>
             </div>
           </div>

@@ -53,9 +53,13 @@ export default function HealthChecksTab({ serviceId }: HealthChecksTabProps) {
     setPage(1); // Reset to first page when applying filters
   };
 
-  // Build filter query params
+  // Build filter params object
   const getFilterParams = () => {
-    const params = new URLSearchParams();
+    const params: Record<string, string | number | undefined> = {
+      serviceId,
+      page,
+      pageSize,
+    };
 
     // Time range filter
     if (timeRange !== "all") {
@@ -102,46 +106,47 @@ export default function HealthChecksTab({ serviceId }: HealthChecksTabProps) {
       }
 
       if (fromDate) {
-        params.set("fromDate", fromDate.toISOString());
+        params.fromDate = fromDate.toISOString();
       }
     }
 
     // Response time filters
     if (minResponseTime) {
-      params.set("minResponseTime", minResponseTime);
+      params.minResponseTime = minResponseTime;
     }
     if (maxResponseTime) {
-      params.set("maxResponseTime", maxResponseTime);
+      params.maxResponseTime = maxResponseTime;
     }
 
     // Status filter
     if (status !== "all") {
-      params.set("status", status);
+      params.status = status;
     }
 
-    return params.toString();
+    return params;
   };
 
   // Memoize filter params to prevent unnecessary re-renders
-  const filterParams = useMemo(
+  const queryParams = useMemo(
     () => getFilterParams(),
-    [timeRange, minResponseTime, maxResponseTime, status]
-  );
-
-  // Memoize health checks query to prevent API loops
-  const healthChecksQuery = useMemo(
-    () =>
-      `/api/healthchecks?serviceId=${serviceId}&page=${page}&pageSize=${pageSize}${
-        filterParams ? `&${filterParams}` : ""
-      }`,
-    [serviceId, page, pageSize, filterParams]
+    [
+      serviceId,
+      page,
+      pageSize,
+      timeRange,
+      minResponseTime,
+      maxResponseTime,
+      status,
+    ]
   );
 
   // Fetch filtered health checks
   const {
     data: filteredHealthChecksData,
     isLoading: filteredHealthChecksLoading,
-  } = useApiQuery<HealthChecksResponse>(healthChecksQuery);
+  } = useApiQuery<"/api/healthchecks">("/api/healthchecks", {
+    params: queryParams,
+  });
 
   const filteredHealthChecks = filteredHealthChecksData?.healthChecks || [];
   const filteredPagination = filteredHealthChecksData?.pagination;

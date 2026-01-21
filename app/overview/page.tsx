@@ -76,7 +76,9 @@ export default async function OverviewPage() {
                       ${
                         service.lastStatus === "UP"
                           ? "bg-green-500"
-                          : "bg-red-500"
+                          : service.lastStatus === "DOWN"
+                          ? "bg-red-500"
+                          : "bg-yellow-500"
                       }
                     `}
                     ></div>
@@ -94,7 +96,9 @@ export default async function OverviewPage() {
                     ${
                       service.lastStatus === "UP"
                         ? "bg-green-500/20 text-green-300"
-                        : "bg-red-500/20 text-red-300"
+                        : service.lastStatus === "DOWN"
+                        ? "bg-red-500/20 text-red-300"
+                        : "bg-yellow-500/20 text-yellow-300"
                     }
                   `}
                     >

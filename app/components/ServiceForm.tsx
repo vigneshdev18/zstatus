@@ -51,7 +51,7 @@ const httpMethodOptions: SelectOption[] = [
 ];
 
 // Dynamic validation schema based on service type
-const createServiceSchema = (serviceType: ServiceType) => {
+const createServiceSchema = (serviceType: ServiceType, isEditMode: boolean) => {
   const baseSchema = {
     name: yup
       .string()
@@ -66,11 +66,6 @@ const createServiceSchema = (serviceType: ServiceType) => {
       .min(1000, "Minimum 1000ms")
       .max(30000, "Maximum 30000ms")
       .required("Timeout is required"),
-    checkInterval: yup
-      .number()
-      .min(30, "Minimum 30s")
-      .max(3600, "Maximum 3600s")
-      .required("Check interval is required"),
     description: yup.string().notRequired(),
     team: yup.string().notRequired(),
     owner: yup.string().notRequired(),
@@ -82,6 +77,10 @@ const createServiceSchema = (serviceType: ServiceType) => {
     responseTimeWarningAttempts: yup.number().min(1).max(10).notRequired(),
     responseTimeCriticalMs: yup.number().min(100).max(30000).notRequired(),
     responseTimeCriticalAttempts: yup.number().min(1).max(10).notRequired(),
+    maxRetries: yup.number().min(0).max(5).notRequired(),
+    retryDelayMs: yup.number().min(100).max(10000).notRequired(),
+    connectionPoolEnabled: yup.boolean().notRequired(),
+    connectionPoolSize: yup.number().min(1).max(20).notRequired(),
   };
 
   if (serviceType === "api") {
@@ -110,7 +109,14 @@ const createServiceSchema = (serviceType: ServiceType) => {
       ...baseSchema,
       mongoConnectionString: yup
         .string()
-        .required("MongoDB connection string is required"),
+        .test(
+          "required-check",
+          "MongoDB connection string is required",
+          function (value) {
+            if (isEditMode) return true; // Optional in edit mode (updates only)
+            return !!value;
+          },
+        ),
       mongoDatabase: yup.string().notRequired(),
     });
   } else if (serviceType === "elasticsearch") {
@@ -118,15 +124,57 @@ const createServiceSchema = (serviceType: ServiceType) => {
       ...baseSchema,
       esConnectionString: yup
         .string()
-        .url("Must be a valid URL")
-        .required("Elasticsearch URL is required"),
+        .test(
+          "required-check",
+          "Elasticsearch URL is required",
+          function (value) {
+            if (isEditMode) return true;
+            return !!value;
+          },
+        )
+        .test(
+          "is-valid-url",
+          "Must be a valid URL (http:// or https://)",
+          (value) => {
+            if (!value) return true; // Let required check handle empty
+            try {
+              const url = new URL(value);
+              return url.protocol === "http:" || url.protocol === "https:";
+            } catch {
+              return false;
+            }
+          },
+        ),
+      esIndex: yup.string().notRequired(),
+      esQuery: yup
+        .string()
+        .notRequired()
+        .test("is-json", "Must be valid JSON", (value) => {
+          if (!value) return true;
+          try {
+            JSON.parse(value);
+            return true;
+          } catch {
+            return false;
+          }
+        }),
+      esUsername: yup.string().notRequired(),
+      esPassword: yup.string().notRequired(),
+      esApiKey: yup.string().notRequired(),
     });
   } else if (serviceType === "redis") {
     return yup.object({
       ...baseSchema,
       redisConnectionString: yup
         .string()
-        .required("Redis connection string is required"),
+        .test(
+          "required-check",
+          "Redis connection string is required",
+          function (value) {
+            if (isEditMode) return true;
+            return !!value;
+          },
+        ),
       redisPassword: yup.string().notRequired(),
       redisDatabase: yup
         .number()
@@ -134,6 +182,23 @@ const createServiceSchema = (serviceType: ServiceType) => {
         .min(0)
         .max(15)
         .notRequired(),
+      redisKeys: yup
+        .array()
+        .of(
+          yup.object({
+            value: yup.string(),
+          }),
+        )
+        .test("unique-keys", "Duplicate keys are not allowed", function (keys) {
+          if (!keys || keys.length === 0) return true;
+
+          const keyValues = keys
+            .map((k) => k.value?.trim().toLowerCase())
+            .filter((v) => v && v !== "");
+
+          const uniqueKeys = new Set(keyValues);
+          return keyValues.length === uniqueKeys.size;
+        }),
     });
   }
 
@@ -159,6 +224,11 @@ type ServiceFormData = {
   mongoDatabase?: string;
   mongoPipelines?: string; // JSON string of pipelines array
   esConnectionString?: string;
+  esIndex?: string;
+  esQuery?: string; // JSON string of query body
+  esUsername?: string;
+  esPassword?: string;
+  esApiKey?: string;
   redisConnectionString?: string;
   redisPassword?: string;
   redisDatabase?: number;
@@ -168,6 +238,10 @@ type ServiceFormData = {
   responseTimeWarningAttempts?: number;
   responseTimeCriticalMs?: number;
   responseTimeCriticalAttempts?: number;
+  maxRetries?: number;
+  retryDelayMs?: number;
+  connectionPoolEnabled?: boolean;
+  connectionPoolSize?: number;
 };
 
 const serviceTypeOptions = [
@@ -204,7 +278,10 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
   const [serviceType, setServiceType] = useState<ServiceType>("api");
 
   // Fetch groups
-  const { data: groupsData } = useApiQuery("/api/groups");
+  const { data: groupsData } = useApiQuery("/api/groups", {
+    refetchOnMount: "always",
+  });
+
   const groups = groupsData?.groups || [];
 
   // Fetch service if editing
@@ -212,13 +289,16 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
     `/api/services/${serviceId}` as "/api/services/[id]",
     {
       enabled: isEditMode && !!serviceId,
-    }
+    },
   );
 
   const service = serviceData?.service;
 
   // Create schema that updates when serviceType changes
-  const schema = useMemo(() => createServiceSchema(serviceType), [serviceType]);
+  const schema = useMemo(
+    () => createServiceSchema(serviceType, isEditMode),
+    [serviceType, isEditMode],
+  );
 
   const methods = useForm<ServiceFormData>({
     resolver: yupResolver(schema) as any,
@@ -226,6 +306,7 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
       name: "",
       serviceType: "api",
       timeout: 5000,
+
       checkInterval: 60,
       description: "",
       team: "",
@@ -240,11 +321,20 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
       mongoConnectionString: "",
       mongoDatabase: "admin",
       esConnectionString: "",
+      esIndex: "",
+      esQuery: "",
+      esUsername: "",
+      esPassword: "",
+      esApiKey: "",
       redisKeys: [],
       responseTimeWarningMs: 3000,
       responseTimeWarningAttempts: 3,
       responseTimeCriticalMs: 5000,
       responseTimeCriticalAttempts: 3,
+      maxRetries: 2,
+      retryDelayMs: 1000,
+      connectionPoolEnabled: true,
+      connectionPoolSize: 1,
     },
   });
 
@@ -254,7 +344,7 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
     reset,
     watch,
     setValue,
-    formState: { isSubmitting },
+    formState: { isSubmitting, errors },
   } = methods;
 
   const watchedGroupId = watch("groupId");
@@ -291,20 +381,43 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
           ? JSON.stringify(service.requestHeaders, null, 2)
           : "",
         requestBody: service.requestBody || "",
-        mongoConnectionString: service.mongoConnectionString || "",
+        mongoConnectionString:
+          service.mongoConnectionString === "********"
+            ? ""
+            : service.mongoConnectionString || "",
         mongoDatabase: service.mongoDatabase || "admin",
         mongoPipelines: service.mongoPipelines
           ? JSON.stringify(service.mongoPipelines, null, 2)
           : "",
-        esConnectionString: service.esConnectionString || "",
-        redisConnectionString: service.redisConnectionString || "",
-        redisPassword: service.redisPassword || "",
+        esConnectionString:
+          service.esConnectionString === "********"
+            ? ""
+            : service.esConnectionString || "",
+        esIndex: service.esIndex || "",
+        esQuery: service.esQuery || "",
+        esUsername:
+          service.esUsername === "********" ? "" : service.esUsername || "",
+        esPassword:
+          service.esPassword === "********" ? "" : service.esPassword || "",
+        esApiKey: service.esApiKey === "********" ? "" : service.esApiKey || "",
+        redisConnectionString:
+          service.redisConnectionString === "********"
+            ? ""
+            : service.redisConnectionString || "",
+        redisPassword:
+          service.redisPassword === "********"
+            ? ""
+            : service.redisPassword || "",
         redisDatabase: service.redisDatabase,
         redisKeys: service.redisKeys?.map((key) => ({ value: key })) || [],
         responseTimeWarningMs: service.responseTimeWarningMs || 3000,
         responseTimeWarningAttempts: service.responseTimeWarningAttempts || 3,
         responseTimeCriticalMs: service.responseTimeCriticalMs || 5000,
         responseTimeCriticalAttempts: service.responseTimeCriticalAttempts || 3,
+        maxRetries: service.maxRetries ?? 2,
+        retryDelayMs: service.retryDelayMs ?? 1000,
+        connectionPoolEnabled: service.connectionPoolEnabled ?? true,
+        connectionPoolSize: service.connectionPoolSize ?? 1,
       });
     }
   }, [service, reset]);
@@ -352,6 +465,10 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
         data.responseTimeCriticalMs || (isEditMode ? null : undefined),
       responseTimeCriticalAttempts:
         data.responseTimeCriticalAttempts || (isEditMode ? null : undefined),
+      maxRetries: data.maxRetries ?? 2,
+      retryDelayMs: data.retryDelayMs ?? 1000,
+      connectionPoolEnabled: data.connectionPoolEnabled ?? false,
+      connectionPoolSize: data.connectionPoolSize ?? 1,
     };
 
     if (serviceType === "api") {
@@ -381,6 +498,11 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
       }
     } else if (serviceType === "elasticsearch") {
       payload.esConnectionString = data.esConnectionString;
+      payload.esIndex = data.esIndex || undefined;
+      payload.esQuery = data.esQuery || undefined;
+      payload.esUsername = data.esUsername || undefined;
+      payload.esPassword = data.esPassword || undefined;
+      payload.esApiKey = data.esApiKey || undefined;
     } else if (serviceType === "redis") {
       payload.redisConnectionString = data.redisConnectionString;
       payload.redisPassword = data.redisPassword || undefined;
@@ -420,8 +542,8 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
       ? "Saving..."
       : "Creating..."
     : isEditMode
-    ? "Save Changes"
-    : "Create Service";
+      ? "Save Changes"
+      : "Create Service";
 
   const groupOptions = [
     { value: "", label: "No Group (No Notifications)" },
@@ -516,7 +638,7 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
                           <Select
                             value={
                               httpMethodOptions.find(
-                                (opt) => opt.value === field.value
+                                (opt) => opt.value === field.value,
                               ) || httpMethodOptions[0]
                             }
                             onChange={(option) =>
@@ -591,14 +713,84 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
                 )}
 
                 {serviceType === "elasticsearch" && (
-                  <FormInput
-                    name="esConnectionString"
-                    type="url"
-                    label="Connection URL"
-                    placeholder="http://localhost:9200"
-                    containerClassName="font-mono text-sm"
-                    required
-                  />
+                  <>
+                    <FormInput
+                      name="esConnectionString"
+                      type="url"
+                      label="Connection URL"
+                      placeholder="http://localhost:9200"
+                      containerClassName="font-mono text-sm"
+                      required
+                    />
+
+                    <FormInput
+                      name="esIndex"
+                      label="Index Name (Optional)"
+                      placeholder="e.g., logs-*, my-index"
+                      containerClassName="font-mono text-sm"
+                    />
+
+                    <div className="col-span-2">
+                      <FormInput
+                        name="esQuery"
+                        label="Search Query (Optional)"
+                        placeholder='{"query": {"match_all": {}}}'
+                        containerClassName="font-mono text-sm"
+                        as="textarea"
+                        rows={6}
+                      />
+                      <p className="text-xs text-gray-400 mt-2">
+                        💡 Specify a custom search query in JSON format. If not
+                        provided, cluster health will be checked instead.
+                        <br />
+                        Example:{" "}
+                        <code className="text-purple-400">
+                          {"{"}"query": {"{"}"match_all": {"{}"}
+                          {"}"}
+                          {"}"}
+                        </code>
+                      </p>
+                    </div>
+
+                    <div className="col-span-2 border-t border-white/10 pt-4 mt-2">
+                      <h4 className="text-md font-semibold text-white mb-3">
+                        Authentication (Optional)
+                      </h4>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <FormInput
+                          name="esUsername"
+                          label="Username"
+                          placeholder="elastic"
+                          containerClassName="font-mono text-sm"
+                        />
+
+                        <FormInput
+                          name="esPassword"
+                          type="password"
+                          label="Password"
+                          placeholder="Enter password"
+                          containerClassName="font-mono text-sm"
+                        />
+                      </div>
+
+                      <div className="text-xs text-gray-400 my-3 text-center">
+                        OR
+                      </div>
+
+                      <FormInput
+                        name="esApiKey"
+                        label="API Key"
+                        placeholder="Enter API key"
+                        containerClassName="font-mono text-sm"
+                      />
+
+                      <p className="text-xs text-gray-400 mt-2">
+                        💡 Provide either username/password or API key for
+                        authentication
+                      </p>
+                    </div>
+                  </>
                 )}
 
                 {serviceType === "redis" && (
@@ -686,21 +878,37 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
                           </p>
                         </div>
                       )}
+
+                      {errors.redisKeys && (
+                        <div className="px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                          <p className="text-sm text-red-300">
+                            ⚠️{" "}
+                            {(() => {
+                              const error = errors.redisKeys;
+                              console.log("Redis keys error:", error);
+
+                              if (typeof error === "string") return error;
+                              if (error && typeof error.message === "string")
+                                return error.message;
+                              if (error && (error as any).root?.message)
+                                return (error as any).root.message;
+
+                              return "Duplicate keys are not allowed";
+                            })()}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </>
                 )}
 
-                <div className="grid grid-cols-2 gap-4">
+                <div>
                   <FormInput
                     name="timeout"
                     type="number"
                     label="Timeout (ms)"
-                  />
-
-                  <FormInput
-                    name="checkInterval"
-                    type="number"
-                    label="Check Interval (s)"
+                    placeholder="5000"
+                    required
                   />
                 </div>
 
@@ -784,62 +992,143 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
               </div>
             </div>
 
-            {/* Right Column - Ownership */}
-            <div className="space-y-6">
-              <div className="glass rounded-2xl p-6 space-y-4">
-                <h3 className="text-lg font-bold text-white">Ownership</h3>
+            {/* Advanced Settings */}
+            <div className="glass rounded-2xl p-6 space-y-6">
+              <h3 className="text-lg font-bold text-white">
+                Advanced Settings
+              </h3>
 
+              <div className="grid grid-cols-1 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Group (Optional)
-                  </label>
-                  <Controller
-                    name="groupId"
-                    control={control}
-                    render={({ field }) => (
-                      <Select
-                        value={selectedGroupOption}
-                        onChange={(option) =>
-                          field.onChange(
-                            (option as SelectOption)?.value || null
-                          )
-                        }
-                        options={groupOptions}
-                        isClearable
-                        placeholder="Select a group..."
-                        instanceId="group-select"
-                      />
-                    )}
+                  <FormInput
+                    name="maxRetries"
+                    type="number"
+                    label="Max Retries"
+                    min="0"
+                    max="5"
+                    hideError
                   />
-                  <p className="text-xs text-gray-400 mt-2">
-                    Services without a group won't send notifications
+                  <p className="text-xs text-gray-400 mt-1">
+                    Number of retry attempts on failure (default: 2)
                   </p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-3">
-                    Notifications
-                  </label>
-                  <Controller
-                    name="alertsEnabled"
-                    control={control}
-                    render={({ field }) => (
-                      <>
-                        <Switch
-                          checked={field.value}
-                          onChange={field.onChange}
-                          label={field.value ? "Enabled" : "Disabled"}
-                          labelPosition="right"
-                        />
-                        <p className="text-xs text-gray-400 mt-2">
-                          {field.value
-                            ? "Notifications will be sent when incidents occur"
-                            : "Health checks continue, but no notifications will be sent"}
-                        </p>
-                      </>
-                    )}
+                  <FormInput
+                    name="retryDelayMs"
+                    type="number"
+                    label="Retry Delay (ms)"
+                    min="100"
+                    max="10000"
+                    hideError
                   />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Initial delay between retries (default: 1000ms)
+                  </p>
                 </div>
+              </div>
+
+              {(serviceType === "mongodb" || serviceType === "redis") && (
+                <>
+                  <div className="border-t border-white/10 pt-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium text-gray-300">
+                        Connection Pooling
+                      </label>
+                      <Controller
+                        name="connectionPoolEnabled"
+                        control={control}
+                        render={({ field }) => (
+                          <button
+                            type="button"
+                            onClick={() => field.onChange(!field.value)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                              field.value ? "bg-purple-600" : "bg-gray-600"
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                field.value ? "translate-x-6" : "translate-x-1"
+                              }`}
+                            />
+                          </button>
+                        )}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-400">
+                      Reuse connections between health checks for better
+                      performance
+                    </p>
+                  </div>
+
+                  {watch("connectionPoolEnabled") && (
+                    <div>
+                      <FormInput
+                        name="connectionPoolSize"
+                        type="number"
+                        label="Pool Size"
+                        min="1"
+                        max="20"
+                        hideError
+                      />
+                      <p className="text-xs text-gray-400 mt-1">
+                        Maximum number of pooled connections (default: 1)
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <h3 className="text-lg font-bold text-white">Ownership</h3>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Group (Optional)
+                </label>
+                <Controller
+                  name="groupId"
+                  control={control}
+                  render={({ field }) => (
+                    <Select
+                      value={selectedGroupOption}
+                      onChange={(option) =>
+                        field.onChange((option as SelectOption)?.value || null)
+                      }
+                      options={groupOptions}
+                      isClearable
+                      placeholder="Select a group..."
+                      instanceId="group-select"
+                    />
+                  )}
+                />
+                <p className="text-xs text-gray-400 mt-2">
+                  Services without a group won't send notifications
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-3">
+                  Notifications
+                </label>
+                <Controller
+                  name="alertsEnabled"
+                  control={control}
+                  render={({ field }) => (
+                    <>
+                      <Switch
+                        checked={field.value}
+                        onChange={field.onChange}
+                        label={field.value ? "Enabled" : "Disabled"}
+                        labelPosition="right"
+                      />
+                      <p className="text-xs text-gray-400 mt-2">
+                        {field.value
+                          ? "Notifications will be sent when incidents occur"
+                          : "Health checks continue, but no notifications will be sent"}
+                      </p>
+                    </>
+                  )}
+                />
               </div>
             </div>
           </div>
@@ -857,8 +1146,8 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
                   ? "Saving..."
                   : "Creating..."
                 : isEditMode
-                ? "Save Changes"
-                : "Create Service"}
+                  ? "Save Changes"
+                  : "Create Service"}
             </Button>
           </div>
         </form>

@@ -8,19 +8,20 @@ export default function RefreshServiceButton({
 }: {
   serviceId: string;
 }) {
-  const triggerCheck = useApiMutation<void, void>({
-    url: `/api/services/${serviceId}/check`,
+  const triggerCheck = useApiMutation({
+    url: `/api/services/${serviceId}/check` as "/api/services/[id]/check",
     method: "POST",
     invalidateQueries: [
       ["api", `/api/services/${serviceId}`],
       ["api", "/api/services"],
+      ["api", "/api/healthchecks"],
     ],
   });
 
   const handleRefresh: MouseEventHandler<HTMLButtonElement> = async (event) => {
     event.preventDefault();
     event.stopPropagation();
-    triggerCheck.mutate(undefined);
+    triggerCheck.mutate({} as any);
   };
 
   return (

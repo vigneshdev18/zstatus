@@ -1,12 +1,103 @@
-import { HealthCheckResult } from "@/lib/types/healthcheck";
+import { HealthCheckResult, ErrorType } from "@/lib/types/healthcheck";
 import { MongoClient } from "mongodb";
-import { Client as ElasticsearchClient } from "@elastic/elasticsearch";
 
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1000;
 
 // Sleep utility for retries
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Retry wrapper with exponential backoff
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = MAX_RETRIES,
+  delayMs: number = RETRY_DELAY_MS,
+  serviceName: string = "service",
+): Promise<{ result: T; retryCount: number }> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await fn();
+      return { result, retryCount: attempt };
+    } catch (error) {
+      lastError = error as Error;
+
+      if (attempt < maxRetries) {
+        const delay = delayMs * Math.pow(2, attempt); // Exponential backoff
+        console.log(
+          `[HealthCheck] Retry ${
+            attempt + 1
+          }/${maxRetries} for ${serviceName} after ${delay}ms`,
+        );
+        await sleep(delay);
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+/**
+ * Classify error into categories for better alerting
+ */
+function classifyError(error: Error): ErrorType {
+  const message = error.message.toLowerCase();
+
+  if (error.name === "AbortError" || message.includes("timeout")) {
+    return "TIMEOUT";
+  }
+  if (
+    message.includes("econnrefused") ||
+    message.includes("connection") ||
+    message.includes("fetch failed")
+  ) {
+    return "CONNECTION";
+  }
+  if (
+    message.includes("auth") ||
+    message.includes("unauthorized") ||
+    message.includes("403") ||
+    message.includes("401")
+  ) {
+    return "AUTH";
+  }
+  if (
+    message.includes("invalid") ||
+    message.includes("parse") ||
+    message.includes("json")
+  ) {
+    return "VALIDATION";
+  }
+
+  return "UNKNOWN";
+}
+
+/**
+ * Get Elasticsearch authentication headers
+ */
+function getElasticsearchHeaders(auth?: {
+  username?: string;
+  password?: string;
+  apiKey?: string;
+}): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (auth?.apiKey) {
+    headers["Authorization"] = `ApiKey ${auth.apiKey}`;
+  } else if (auth?.username && auth?.password) {
+    const credentials = Buffer.from(
+      `${auth.username}:${auth.password}`,
+    ).toString("base64");
+    headers["Authorization"] = `Basic ${credentials}`;
+  }
+
+  return headers;
+}
 
 // Run API/HTTP health check with retries
 export async function runApiHealthCheck(
@@ -15,7 +106,7 @@ export async function runApiHealthCheck(
   timeout: number = 5000,
   headers?: Record<string, string>,
   body?: string,
-  retries: number = 0
+  retries: number = 0,
 ): Promise<HealthCheckResult> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -40,7 +131,6 @@ export async function runApiHealthCheck(
     const responseTime = Date.now() - startTime;
 
     clearTimeout(timeoutId);
-    console.log(url, response.ok, response.status);
 
     // Consider 2xx and 3xx as successful
     if (response.ok || response.status < 400) {
@@ -55,6 +145,10 @@ export async function runApiHealthCheck(
         responseTime,
         statusCode: response.status,
         errorMessage: `HTTP ${response.status} ${response.statusText}`,
+        errorType:
+          response.status === 401 || response.status === 403
+            ? "AUTH"
+            : "UNKNOWN",
       };
     }
   } catch (error) {
@@ -66,7 +160,7 @@ export async function runApiHealthCheck(
       console.log(
         `[HealthCheck] Retry ${
           retries + 1
-        }/${MAX_RETRIES} for ${url} after ${delay}ms`
+        }/${MAX_RETRIES} for ${url} after ${delay}ms`,
       );
       await sleep(delay);
       return runApiHealthCheck(
@@ -75,20 +169,22 @@ export async function runApiHealthCheck(
         timeout,
         headers,
         body,
-        retries + 1
+        retries + 1,
       );
     }
 
     const responseTime = timeout;
     let errorMessage = "Unknown error";
+    let errorType: ErrorType = "UNKNOWN";
 
     if (error instanceof Error) {
+      errorMessage = error.message;
+      errorType = classifyError(error);
+
       if (error.name === "AbortError") {
         errorMessage = `Timeout after ${timeout}ms`;
       } else if (error.message.includes("fetch failed")) {
         errorMessage = "Connection failed";
-      } else {
-        errorMessage = error.message;
       }
     }
 
@@ -96,6 +192,7 @@ export async function runApiHealthCheck(
       status: "DOWN",
       responseTime,
       errorMessage,
+      errorType,
     };
   }
 }
@@ -105,56 +202,88 @@ export async function runMongoHealthCheck(
   connectionString: string,
   database: string = "admin",
   timeout: number = 5000,
-  pipelines?: Array<{ collection: string; pipeline: any[] }>
+  pipelines?: Array<{ collection: string; pipeline: any[] }>,
+  options?: {
+    maxRetries?: number;
+    retryDelayMs?: number;
+    useConnectionPool?: boolean;
+  },
 ): Promise<HealthCheckResult> {
   const startTime = Date.now();
+  const maxRetries = options?.maxRetries ?? MAX_RETRIES;
+  const retryDelayMs = options?.retryDelayMs ?? RETRY_DELAY_MS;
+  const usePool = options?.useConnectionPool ?? false;
+
   let client: MongoClient | null = null;
+  let shouldCloseClient = true;
 
   try {
-    client = new MongoClient(connectionString, {
-      serverSelectionTimeoutMS: timeout,
-      connectTimeoutMS: timeout,
-    });
+    const { result, retryCount } = await withRetry(
+      async () => {
+        if (usePool) {
+          // Use connection pool
+          const { connectionPool } = await import("./connection-pool");
+          client = await connectionPool.getMongoClient(
+            connectionString,
+            timeout,
+          );
+          shouldCloseClient = false; // Don't close pooled connections
+        } else {
+          // Create new connection
+          client = new MongoClient(connectionString, {
+            serverSelectionTimeoutMS: timeout,
+            connectTimeoutMS: timeout,
+          });
+          await client.connect();
+        }
 
-    await client.connect();
-    const db = client.db(database);
+        const db = client.db(database);
 
-    // If pipelines are provided, execute them sequentially
-    if (pipelines && pipelines.length > 0) {
-      for (const pipelineConfig of pipelines) {
-        const { collection, pipeline } = pipelineConfig;
+        // If pipelines are provided, execute them sequentially
+        if (pipelines && pipelines.length > 0) {
+          for (const pipelineConfig of pipelines) {
+            const { collection, pipeline } = pipelineConfig;
+            await db.collection(collection).aggregate(pipeline).toArray();
+          }
+        } else {
+          // Default: Use admin ping command (more efficient than aggregate)
+          await db.admin().ping();
+        }
 
-        // Execute the pipeline
-        await db.collection(collection).aggregate(pipeline).toArray();
-      }
-    } else {
-      // Default: Run a simple ping command
-      await db.collection("healthchecks").aggregate([]);
-    }
+        return true;
+      },
+      maxRetries,
+      retryDelayMs,
+      "MongoDB",
+    );
 
     const responseTime = Date.now() - startTime;
 
     return {
       status: "UP",
       responseTime,
+      metadata: { retryCount },
     };
   } catch (error) {
     const responseTime = Date.now() - startTime;
     let errorMessage = "MongoDB connection failed";
+    let errorType: ErrorType = "UNKNOWN";
 
     if (error instanceof Error) {
       errorMessage = error.message;
+      errorType = classifyError(error);
     }
 
     return {
       status: "DOWN",
       responseTime,
       errorMessage,
+      errorType,
     };
   } finally {
-    if (client) {
+    if (client && shouldCloseClient) {
       try {
-        await client.close();
+        await (client as MongoClient).close();
       } catch (closeError) {
         console.error("[MongoDB] Error closing connection:", closeError);
       }
@@ -165,46 +294,146 @@ export async function runMongoHealthCheck(
 // Run Elasticsearch health check
 export async function runElasticsearchHealthCheck(
   connectionString: string,
-  timeout: number = 5000
+  timeout: number = 5000,
+  options?: {
+    index?: string;
+    query?: string; // JSON string of the query body
+    username?: string;
+    password?: string;
+    apiKey?: string;
+    maxRetries?: number;
+    retryDelayMs?: number;
+  },
 ): Promise<HealthCheckResult> {
   const startTime = Date.now();
+  const maxRetries = options?.maxRetries ?? MAX_RETRIES;
+  const retryDelayMs = options?.retryDelayMs ?? RETRY_DELAY_MS;
+
+  // Validate timeout bounds (1s to 30s)
+  const validTimeout = Math.max(1000, Math.min(timeout, 30000));
+  if (validTimeout !== timeout) {
+    console.warn(
+      `[Elasticsearch] Timeout ${timeout}ms adjusted to ${validTimeout}ms (valid range: 1000-30000ms)`,
+    );
+  }
 
   try {
-    const client = new ElasticsearchClient({
-      node: connectionString,
-      requestTimeout: timeout,
-    });
+    // Validate JSON query before making request
+    if (options?.query) {
+      try {
+        JSON.parse(options.query);
+      } catch (parseError) {
+        return {
+          status: "DOWN",
+          responseTime: 0,
+          errorMessage: "Invalid JSON query",
+          errorType: "VALIDATION",
+        };
+      }
+    }
 
-    // Check cluster health
-    const health = await client.cluster.health();
+    const { result, retryCount } = await withRetry(
+      async () => {
+        // If index and query are provided, run a search query
+        if (options?.index && options?.query) {
+          const queryBody = JSON.parse(options.query);
+
+          // Add response size limit to prevent memory issues
+          if (!queryBody.size) {
+            queryBody.size = 10; // Default limit
+          } else if (queryBody.size > 100) {
+            queryBody.size = 100; // Cap at 100 results
+            console.warn(
+              `[Elasticsearch] Query size capped at 100 (requested: ${queryBody.size})`,
+            );
+          }
+
+          // Use plain HTTP request to avoid version compatibility issues
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), validTimeout);
+
+          const response = await fetch(
+            `${connectionString}/${options.index}/_search`,
+            {
+              method: "POST",
+              headers: getElasticsearchHeaders({
+                username: options.username,
+                password: options.password,
+                apiKey: options.apiKey,
+              }),
+              body: JSON.stringify(queryBody),
+              signal: controller.signal,
+            },
+          );
+
+          clearTimeout(timeoutId);
+
+          if (response.ok) {
+            return { success: true };
+          } else {
+            const errorText = await response.text();
+            throw new Error(
+              `Search query failed: ${response.status} ${errorText}`,
+            );
+          }
+        } else {
+          // Default: Check cluster health using plain HTTP
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), validTimeout);
+
+          const response = await fetch(`${connectionString}/_cluster/health`, {
+            method: "GET",
+            headers: getElasticsearchHeaders({
+              username: options?.username,
+              password: options?.password,
+              apiKey: options?.apiKey,
+            }),
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+
+          if (response.ok) {
+            const health = await response.json();
+
+            // Consider yellow and green as UP
+            if (health.status === "green" || health.status === "yellow") {
+              return { success: true };
+            } else {
+              throw new Error(`Cluster status: ${health.status}`);
+            }
+          } else {
+            throw new Error(`HTTP ${response.status}`);
+          }
+        }
+      },
+      maxRetries,
+      retryDelayMs,
+      "Elasticsearch",
+    );
 
     const responseTime = Date.now() - startTime;
 
-    // Consider yellow and green as UP
-    if (health.status === "green" || health.status === "yellow") {
-      return {
-        status: "UP",
-        responseTime,
-      };
-    } else {
-      return {
-        status: "DOWN",
-        responseTime,
-        errorMessage: `Cluster status: ${health.status}`,
-      };
-    }
+    return {
+      status: "UP",
+      responseTime,
+      metadata: { retryCount },
+    };
   } catch (error) {
     const responseTime = Date.now() - startTime;
     let errorMessage = "Elasticsearch connection failed";
+    let errorType: ErrorType = "UNKNOWN";
 
     if (error instanceof Error) {
       errorMessage = error.message;
+      errorType = classifyError(error);
     }
 
     return {
       status: "DOWN",
       responseTime,
       errorMessage,
+      errorType,
     };
   }
 }
@@ -218,7 +447,10 @@ export async function runRedisHealthCheck(
     database?: number;
     operations?: Array<{ command: string; args: string[] }>;
     keys?: string[]; // Keys to test with read/write operations
-  }
+    maxRetries?: number;
+    retryDelayMs?: number;
+    useConnectionPool?: boolean;
+  },
 ): Promise<HealthCheckResult> {
   const startTime = Date.now();
 
@@ -357,6 +589,11 @@ export async function runHealthCheck(
     mongoPipelines?: Array<{ collection: string; pipeline: any[] }>;
     // Elasticsearch fields
     esConnectionString?: string;
+    esIndex?: string;
+    esQuery?: string;
+    esUsername?: string;
+    esPassword?: string;
+    esApiKey?: string;
     // Redis fields
     redisConnectionString?: string;
     redisPassword?: string;
@@ -365,7 +602,10 @@ export async function runHealthCheck(
     redisKeys?: string[];
     // Common
     timeout?: number;
-  }
+    maxRetries?: number;
+    retryDelayMs?: number;
+    useConnectionPool?: boolean;
+  },
 ): Promise<HealthCheckResult> {
   const timeout = config.timeout || 5000;
 
@@ -379,42 +619,58 @@ export async function runHealthCheck(
         config.method || "GET",
         timeout,
         config.headers,
-        config.body
+        config.body,
       );
 
     case "mongodb":
       if (!config.mongoConnectionString) {
         throw new Error(
-          "Connection string is required for MongoDB health checks"
+          "Connection string is required for MongoDB health checks",
         );
       }
       return runMongoHealthCheck(
         config.mongoConnectionString,
         config.mongoDatabase || "admin",
         timeout,
-        config.mongoPipelines
+        config.mongoPipelines,
+        {
+          maxRetries: config.maxRetries,
+          retryDelayMs: config.retryDelayMs,
+          useConnectionPool: config.useConnectionPool,
+        },
       );
 
     case "elasticsearch":
       if (!config.esConnectionString) {
         throw new Error(
-          "Connection string is required for Elasticsearch health checks"
+          "Connection string is required for Elasticsearch health checks",
         );
       }
-      return runElasticsearchHealthCheck(config.esConnectionString, timeout);
+      return runElasticsearchHealthCheck(config.esConnectionString, timeout, {
+        index: config.esIndex,
+        query: config.esQuery,
+        username: config.esUsername,
+        password: config.esPassword,
+        apiKey: config.esApiKey,
+        maxRetries: config.maxRetries,
+        retryDelayMs: config.retryDelayMs,
+      });
 
     case "redis":
-      console.log(config);
       if (!config.redisConnectionString) {
         throw new Error(
-          "Connection string is required for Redis health checks"
+          "Connection string is required for Redis health checks",
         );
       }
+
       return runRedisHealthCheck(config.redisConnectionString, timeout, {
         password: config.redisPassword,
         database: config.redisDatabase,
         operations: config.redisOperations,
         keys: config.redisKeys,
+        maxRetries: config.maxRetries,
+        retryDelayMs: config.retryDelayMs,
+        useConnectionPool: config.useConnectionPool,
       });
 
     default:

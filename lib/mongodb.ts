@@ -1,4 +1,5 @@
 import { MongoClient, Db } from "mongodb";
+import { isProduction } from "./constants/app.constants";
 
 if (!process.env.MONGODB_URI) {
   throw new Error('Invalid/Missing environment variable: "MONGODB_URI"');
@@ -11,7 +12,7 @@ const options = {};
 let client: MongoClient;
 let clientPromise: Promise<MongoClient>;
 
-if (process.env.NODE_ENV === "development") {
+if (!isProduction) {
   // In development mode, use a global variable to preserve the connection
   // across module reloads caused by HMR (Hot Module Replacement)
   let globalWithMongo = global as typeof globalThis & {
@@ -32,10 +33,18 @@ if (process.env.NODE_ENV === "development") {
 // Export a module-scoped MongoClient promise
 export default clientPromise;
 
+// Cache the database instance
+let cachedDb: Db | null = null;
+
 // Helper to get database instance
 export async function getDatabase(): Promise<Db> {
+  if (cachedDb) {
+    return cachedDb;
+  }
+
   const client = await clientPromise;
-  return client.db(dbName);
+  cachedDb = client.db(dbName);
+  return cachedDb;
 }
 
 // Helper to test connection

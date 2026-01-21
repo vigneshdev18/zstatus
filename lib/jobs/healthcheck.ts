@@ -1,4 +1,8 @@
-import { getAllServices, updateService } from "@/lib/db/services";
+import {
+  getAllServices,
+  updateService,
+  getServiceWithSecrets,
+} from "@/lib/db/services";
 import { createHealthCheck } from "@/lib/db/healthchecks";
 import { runHealthCheck } from "@/lib/healthcheck/runner";
 import { detectIncident } from "@/lib/incidents/detector";
@@ -6,6 +10,7 @@ import { updateServiceStatus } from "@/lib/db/service-status";
 import { getSettings } from "@/lib/db/settings";
 import { sendAlert } from "@/lib/alerts/service";
 import { Service } from "@/lib/types/service";
+import { ServiceSecret } from "@/lib/types/service-secret";
 
 /**
  * Check if response time exceeds thresholds and trigger alerts if needed
@@ -13,7 +18,7 @@ import { Service } from "@/lib/types/service";
 async function checkResponseTimeThresholds(
   service: Service,
   responseTime: number,
-  timestamp: Date
+  timestamp: Date,
 ) {
   const warningMs = service.responseTimeWarningMs ?? 3000;
   const warningAttempts = service.responseTimeWarningAttempts ?? 3;
@@ -26,10 +31,10 @@ async function checkResponseTimeThresholds(
   // Check critical threshold first (higher priority)
   if (responseTime >= criticalMs) {
     consecutiveSlowCritical++;
-    consecutiveSlowWarning = 0; // Reset warning counter
+    consecutiveSlowWarning = 0;
 
     console.log(
-      `[ResponseTime] ${service.name}: CRITICAL threshold breach (${responseTime}ms >= ${criticalMs}ms) - ${consecutiveSlowCritical}/${criticalAttempts} attempts`
+      `[ResponseTime] ${service.name}: CRITICAL threshold breach (${responseTime}ms >= ${criticalMs}ms) - ${consecutiveSlowCritical}/${criticalAttempts} attempts`,
     );
 
     if (consecutiveSlowCritical >= criticalAttempts) {
@@ -43,11 +48,11 @@ async function checkResponseTimeThresholds(
         `🔴 RESPONSE TIME CRITICAL\n` +
           `Response time exceeded critical threshold\n` +
           `Current: ${responseTime}ms | Threshold: ${criticalMs}ms\n` +
-          `Consecutive slow responses: ${consecutiveSlowCritical}/${criticalAttempts}`
+          `Consecutive slow responses: ${consecutiveSlowCritical}/${criticalAttempts}`,
       );
 
       console.log(
-        `[ResponseTime] ${service.name}: CRITICAL alert triggered after ${consecutiveSlowCritical} consecutive attempts`
+        `[ResponseTime] ${service.name}: CRITICAL alert triggered after ${consecutiveSlowCritical} consecutive attempts`,
       );
 
       // Reset counter after alerting
@@ -58,7 +63,7 @@ async function checkResponseTimeThresholds(
     consecutiveSlowCritical = 0; // Reset critical counter
 
     console.log(
-      `[ResponseTime] ${service.name}: WARNING threshold breach (${responseTime}ms >= ${warningMs}ms) - ${consecutiveSlowWarning}/${warningAttempts} attempts`
+      `[ResponseTime] ${service.name}: WARNING threshold breach (${responseTime}ms >= ${warningMs}ms) - ${consecutiveSlowWarning}/${warningAttempts} attempts`,
     );
 
     if (consecutiveSlowWarning >= warningAttempts) {
@@ -72,11 +77,11 @@ async function checkResponseTimeThresholds(
         `⚠️ RESPONSE TIME WARNING\n` +
           `Response time exceeded warning threshold\n` +
           `Current: ${responseTime}ms | Threshold: ${warningMs}ms\n` +
-          `Consecutive slow responses: ${consecutiveSlowWarning}/${warningAttempts}`
+          `Consecutive slow responses: ${consecutiveSlowWarning}/${warningAttempts}`,
       );
 
       console.log(
-        `[ResponseTime] ${service.name}: WARNING alert triggered after ${consecutiveSlowWarning} consecutive attempts`
+        `[ResponseTime] ${service.name}: WARNING alert triggered after ${consecutiveSlowWarning} consecutive attempts`,
       );
 
       // Reset counter after alerting
@@ -86,7 +91,7 @@ async function checkResponseTimeThresholds(
     // Response time is good - reset both counters
     if (consecutiveSlowWarning > 0 || consecutiveSlowCritical > 0) {
       console.log(
-        `[ResponseTime] ${service.name}: Response time normal (${responseTime}ms) - resetting counters`
+        `[ResponseTime] ${service.name}: Response time normal (${responseTime}ms) - resetting counters`,
       );
     }
     consecutiveSlowWarning = 0;
@@ -107,12 +112,12 @@ export async function healthCheckJob() {
     const settings = await getSettings();
 
     console.log(
-      `[HealthCheck] globalHealthChecksEnabled: ${settings.globalHealthChecksEnabled}`
+      `[HealthCheck] globalHealthChecksEnabled: ${settings.globalHealthChecksEnabled}`,
     );
 
     if (!settings.globalHealthChecksEnabled) {
       console.log(
-        "[HealthCheck] Global health checks disabled. Skipping all checks."
+        "[HealthCheck] Global health checks disabled. Skipping all checks.",
       );
       return;
     }
@@ -125,12 +130,17 @@ export async function healthCheckJob() {
     }
 
     console.log(
-      `[HealthCheck] Running checks for ${services.length} service(s)`
+      `[HealthCheck] Running checks for ${services.length} service(s)`,
     );
 
     // Run health checks for all services
     for (const service of services) {
       try {
+        // Fetch secrets for this service
+        const serviceWithSecrets = await getServiceWithSecrets(service.id);
+        const fullService = (serviceWithSecrets || service) as Service &
+          Partial<ServiceSecret>;
+
         // Build config based on service type
         const config: any = {
           timeout: service.timeout,
@@ -144,19 +154,30 @@ export async function healthCheckJob() {
             config.body = service.requestBody;
             break;
           case "mongodb":
-            config.mongoConnectionString = service.mongoConnectionString;
+            config.mongoConnectionString = fullService.mongoConnectionString;
             config.mongoDatabase = service.mongoDatabase;
             config.mongoPipelines = service.mongoPipelines;
+            config.maxRetries = service.maxRetries;
+            config.retryDelayMs = service.retryDelayMs;
+            config.useConnectionPool = service.connectionPoolEnabled;
             break;
           case "elasticsearch":
-            config.esConnectionString = service.esConnectionString;
+            config.esConnectionString = fullService.esConnectionString;
+            config.esIndex = service.esIndex;
+            config.esQuery = service.esQuery;
+            config.esUsername = fullService.esUsername;
+            config.esPassword = fullService.esPassword;
+            config.esApiKey = fullService.esApiKey;
             break;
           case "redis":
-            config.redisConnectionString = service.redisConnectionString;
-            config.redisPassword = service.redisPassword;
+            config.redisConnectionString = fullService.redisConnectionString;
+            config.redisPassword = fullService.redisPassword;
             config.redisDatabase = service.redisDatabase;
             config.redisOperations = service.redisOperations;
             config.redisKeys = service.redisKeys;
+            config.maxRetries = service.maxRetries;
+            config.retryDelayMs = service.retryDelayMs;
+            config.useConnectionPool = service.connectionPoolEnabled;
             break;
         }
 
@@ -171,7 +192,9 @@ export async function healthCheckJob() {
           result.status,
           result.responseTime,
           result.statusCode,
-          result.errorMessage
+          result.errorMessage,
+          result.errorType,
+          result.metrics,
         );
 
         // Check response time thresholds (only for UP status)
@@ -179,7 +202,7 @@ export async function healthCheckJob() {
           await checkResponseTimeThresholds(
             service,
             result.responseTime,
-            timestamp
+            timestamp,
           );
         }
 
@@ -188,9 +211,18 @@ export async function healthCheckJob() {
           console.log(
             `[HealthCheck] ${service.name}: ${service.lastStatus || "null"} → ${
               result.status
-            }`
+            }`,
           );
         }
+
+        // Log before incident detection for debugging
+        console.log(
+          `[HealthCheck] Calling detectIncident for ${
+            service.name
+          }: lastStatus=${service.lastStatus || "null"}, currentStatus=${
+            result.status
+          }`,
+        );
 
         // Detect incidents based on state transitions
         await detectIncident(
@@ -198,14 +230,14 @@ export async function healthCheckJob() {
           service.name,
           result.status,
           service.lastStatus || null,
-          timestamp
+          timestamp,
         );
 
         // Update service last status
         await updateServiceStatus(service.id, result.status, timestamp);
 
         console.log(
-          `[HealthCheck] ${service.name} [${service.serviceType}]: ${result.status} (${result.responseTime}ms)`
+          `[HealthCheck] ${service.name} [${service.serviceType}]: ${result.status} (${result.responseTime}ms)`,
         );
       } catch (error) {
         console.error(`[HealthCheck] Error checking ${service.name}:`, error);
@@ -219,7 +251,8 @@ export async function healthCheckJob() {
           "DOWN",
           0,
           undefined,
-          error instanceof Error ? error.message : "Unknown error"
+          error instanceof Error ? error.message : "Unknown error",
+          "UNKNOWN",
         );
 
         // Detect incident for error case
@@ -228,7 +261,7 @@ export async function healthCheckJob() {
           service.name,
           "DOWN",
           service.lastStatus || null,
-          timestamp
+          timestamp,
         );
 
         // Update service status to DOWN
