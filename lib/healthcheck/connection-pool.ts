@@ -24,7 +24,7 @@ class ConnectionPoolManager {
    */
   async getMongoClient(
     connectionString: string,
-    timeout: number
+    timeout: number,
   ): Promise<MongoClient> {
     const key = connectionString;
 
@@ -32,7 +32,7 @@ class ConnectionPoolManager {
       const client = new MongoClient(connectionString, {
         serverSelectionTimeoutMS: timeout,
         connectTimeoutMS: timeout,
-        maxPoolSize: 5,
+        maxPoolSize: 1,
         minPoolSize: 1,
       });
       await client.connect();
@@ -52,7 +52,7 @@ class ConnectionPoolManager {
       password?: string;
       database?: number;
       timeout?: number;
-    }
+    },
   ): Promise<Redis> {
     const Redis = (await import("ioredis")).default;
     const key = `${connectionString}:${options.database || 0}`;
@@ -94,7 +94,7 @@ class ConnectionPoolManager {
       } catch (error) {
         console.error(
           `[ConnectionPool] Error closing MongoDB pool for ${key}:`,
-          error
+          error,
         );
       }
     }
@@ -108,7 +108,7 @@ class ConnectionPoolManager {
       } catch (error) {
         console.error(
           `[ConnectionPool] Error closing Redis pool for ${key}:`,
-          error
+          error,
         );
       }
     }
@@ -126,7 +126,7 @@ class ConnectionPoolManager {
       await client.close();
       this.mongoPools.delete(connectionString);
       console.log(
-        `[ConnectionPool] Removed MongoDB pool for ${connectionString}`
+        `[ConnectionPool] Removed MongoDB pool for ${connectionString}`,
       );
     }
   }
@@ -158,10 +158,10 @@ class ConnectionPoolManager {
       mongoConnectionString?: string;
       redisConnectionString?: string;
       redisDatabase?: number;
-    }
+    },
   ): Promise<void> {
     console.log(
-      `[ConnectionPool] Invalidating connections for ${serviceType} service`
+      `[ConnectionPool] Invalidating connections for ${serviceType} service`,
     );
 
     if (serviceType === "mongodb") {

@@ -13,6 +13,7 @@ import FormInput from "@/app/components/FormInput";
 import { FormProvider } from "react-hook-form";
 import { useApiQuery } from "@/lib/hooks/useApiQuery";
 import { useApiMutation } from "@/lib/hooks/useApiMutation";
+import { QueryErrorResetBoundary, useQueryClient } from "@tanstack/react-query";
 
 interface Group {
   id: string;
@@ -20,6 +21,7 @@ interface Group {
   description?: string;
   color?: string;
   webhookUrls: string[];
+  alertEmails: string[];
 }
 
 interface GroupFormProps {
@@ -32,6 +34,7 @@ interface GroupFormData {
   description?: string;
   color: string;
   webhookUrls: string[];
+  alertEmails: string[];
 }
 
 // Yup validation schema
@@ -47,11 +50,13 @@ const groupSchema = yup.object({
     .matches(/^#[0-9A-F]{6}$/i, "Must be a valid hex color"),
   webhookUrls: yup
     .array()
+    .of(yup.string().url("Must be a valid URL"))
+    .optional()
+    .default([]),
+  alertEmails: yup
+    .array()
     .of(
-      yup
-        .string()
-        .url("Must be a valid URL")
-        .required("Webhook URL is required"),
+      yup.string().email("Must be a valid email").required("Email is required"),
     )
     .optional()
     .default([]),
@@ -61,6 +66,8 @@ export default function GroupForm({ groupId }: GroupFormProps) {
   const router = useRouter();
   const isEditMode = !!groupId;
   const [error, setError] = useState("");
+
+  const queryClient = useQueryClient();
 
   // Fetch group data if editing
   const { data: groupData, isLoading: loading } = useApiQuery(
@@ -79,6 +86,7 @@ export default function GroupForm({ groupId }: GroupFormProps) {
       description: "",
       color: "#667eea",
       webhookUrls: [],
+      alertEmails: [],
     },
   });
 
@@ -89,10 +97,19 @@ export default function GroupForm({ groupId }: GroupFormProps) {
     reset,
     formState: { errors, isSubmitting },
   } = methods;
-  console.log(errors);
+
   const { fields, append, remove } = useFieldArray({
     control: control as any,
     name: "webhookUrls",
+  }) as any;
+
+  const {
+    fields: emailFields,
+    append: appendEmail,
+    remove: removeEmail,
+  } = useFieldArray({
+    control: control as any,
+    name: "alertEmails",
   }) as any;
 
   // Reset form when group data loads
@@ -103,6 +120,7 @@ export default function GroupForm({ groupId }: GroupFormProps) {
         description: group.description || "",
         color: group.color || "#667eea",
         webhookUrls: group.webhookUrls.length > 0 ? group.webhookUrls : [""],
+        alertEmails: group.alertEmails.length > 0 ? group.alertEmails : [""],
       });
     }
   }, [group, reset]);
@@ -110,12 +128,17 @@ export default function GroupForm({ groupId }: GroupFormProps) {
   // Mutation for create/update
   const saveGroup = useApiMutation({
     url: (isEditMode ? `/api/groups/${groupId}` : "/api/groups") as any,
-    method: isEditMode ? "PATCH" : "POST",
+    method: isEditMode ? "PUT" : "POST",
     invalidateQueries: [["api", "/api/groups"]],
     options: {
       onSuccess: () => {
         router.push("/groups");
         router.refresh();
+
+        queryClient.invalidateQueries({
+          queryKey: ["api", "/api/groups"],
+          refetchType: "all",
+        });
       },
       onError: (err) => {
         setError(err.message || "An error occurred");
@@ -146,11 +169,16 @@ export default function GroupForm({ groupId }: GroupFormProps) {
     const validWebhooks =
       data.webhookUrls?.filter((url) => url.trim() !== "") || [];
 
+    // Filter out empty emails
+    const validEmails =
+      data.alertEmails?.filter((email) => email.trim() !== "") || [];
+
     const payload = {
       name: data.name,
       description: data.description || undefined,
       color: data.color,
       webhookUrls: validWebhooks,
+      alertEmails: validEmails,
     };
 
     saveGroup.mutate(payload as any);
@@ -301,16 +329,15 @@ export default function GroupForm({ groupId }: GroupFormProps) {
                       </p>
                     )}
                   </div>
-                  {fields.length > 1 && (
-                    <Button
-                      type="button"
-                      onClick={() => remove(index)}
-                      variant="dangerSubtle"
-                      size="sm"
-                    >
-                      ✕
-                    </Button>
-                  )}
+
+                  <Button
+                    type="button"
+                    onClick={() => remove(index)}
+                    variant="dangerSubtle"
+                    size="sm"
+                  >
+                    ✕
+                  </Button>
                 </div>
               ))}
             </div>
@@ -320,6 +347,70 @@ export default function GroupForm({ groupId }: GroupFormProps) {
                 <p className="text-sm text-yellow-300">
                   ⚠️ No webhook URLs configured. Services in this group won't
                   send notifications.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Alert Emails */}
+          <div className="glass rounded-2xl p-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white">
+                Alert Email Addresses
+              </h3>
+              <Button
+                type="button"
+                onClick={() => appendEmail("" as any)}
+                variant="accent"
+                size="sm"
+              >
+                + Add Email
+              </Button>
+            </div>
+
+            <p className="text-sm text-gray-400">
+              Add email addresses to receive alert notifications. These emails
+              will receive alerts based on service-specific settings.
+            </p>
+
+            <div className="space-y-3">
+              {emailFields.map((field: any, index: number) => (
+                <div key={field.id} className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <input
+                      type="email"
+                      {...register(`alertEmails.${index}` as const)}
+                      className={`w-full px-4 py-3 bg-white/5 border ${
+                        errors.alertEmails?.[index]
+                          ? "border-red-500"
+                          : "border-white/10"
+                      } rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-smooth text-sm`}
+                      placeholder="email@example.com"
+                    />
+                    {errors.alertEmails?.[index] && (
+                      <p className="text-sm text-red-400 mt-1">
+                        {errors.alertEmails[index]?.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <Button
+                    type="button"
+                    onClick={() => removeEmail(index)}
+                    variant="dangerSubtle"
+                    size="sm"
+                  >
+                    ✕
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            {emailFields.length === 0 && (
+              <div className="px-4 py-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                <p className="text-sm text-blue-300">
+                  ℹ️ No email addresses configured. Add emails to receive alert
+                  notifications.
                 </p>
               </div>
             )}

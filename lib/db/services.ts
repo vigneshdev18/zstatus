@@ -54,7 +54,14 @@ export async function createService(
     // Optional metadata
     ...(input.groupId && { groupId: input.groupId }),
     alertsEnabled:
-      input.alertsEnabled !== undefined ? input.alertsEnabled : true, // Default to true
+      input.alertsEnabled !== undefined ? input.alertsEnabled : true,
+    emailAlertsEnabled:
+      input.emailAlertsEnabled !== undefined ? input.emailAlertsEnabled : false,
+    downtimeAlerts:
+      input.downtimeAlerts !== undefined ? input.downtimeAlerts : false,
+    responseTimeAlerts:
+      input.responseTimeAlerts !== undefined ? input.responseTimeAlerts : false,
+    dependencies: input.dependencies || [],
     ...(input.description && { description: input.description }),
     ...(input.team && { team: input.team }),
     ...(input.owner && { owner: input.owner }),

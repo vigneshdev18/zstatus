@@ -51,6 +51,9 @@ export interface Service {
   // Optional metadata
   groupId?: string; // Optional group assignment (if not set, no notifications sent)
   alertsEnabled?: boolean; // Whether to send alerts for this service (defaults to true)
+  emailAlertsEnabled?: boolean; // Master toggle for email alerts
+  downtimeAlerts?: boolean; // Specific toggle for UP/DOWN alerts
+  responseTimeAlerts?: boolean; // Specific toggle for slow response alerts
   dependencies?: string[]; // Array of service IDs that this service depends on
   grafanaDashboardId?: string; // Optional Grafana dashboard ID for this service
   team?: string; // Team or department that owns this service
@@ -111,6 +114,9 @@ export interface CreateServiceInput {
   // Metadata
   groupId?: string;
   alertsEnabled?: boolean;
+  emailAlertsEnabled?: boolean;
+  downtimeAlerts?: boolean;
+  responseTimeAlerts?: boolean;
   dependencies?: string[];
   grafanaDashboardId?: string;
   team?: string;
@@ -160,6 +166,9 @@ export interface UpdateServiceInput {
   // Metadata
   groupId?: string | null; // Allow null to remove group assignment
   alertsEnabled?: boolean;
+  emailAlertsEnabled?: boolean;
+  downtimeAlerts?: boolean;
+  responseTimeAlerts?: boolean;
   dependencies?: string[];
   grafanaDashboardId?: string;
   team?: string;

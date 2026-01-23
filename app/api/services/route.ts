@@ -20,6 +20,9 @@ export async function GET() {
         lastCheckedAt: s.lastCheckedAt?.toISOString(),
         groupId: s.groupId,
         alertsEnabled: s.alertsEnabled !== undefined ? s.alertsEnabled : true,
+        emailAlertsEnabled: s.emailAlertsEnabled,
+        downtimeAlerts: s.downtimeAlerts,
+        responseTimeAlerts: s.responseTimeAlerts,
         avgResponseTime: s.avgResponseTime,
         // Response time alerting configuration
         responseTimeWarningMs: s.responseTimeWarningMs,
@@ -85,6 +88,9 @@ export async function POST(request: NextRequest) {
       groupId: body.groupId,
       alertsEnabled:
         body.alertsEnabled !== undefined ? body.alertsEnabled : true,
+      emailAlertsEnabled: body.emailAlertsEnabled,
+      downtimeAlerts: body.downtimeAlerts,
+      responseTimeAlerts: body.responseTimeAlerts,
       description: body.description,
       team: body.team,
       owner: body.owner,

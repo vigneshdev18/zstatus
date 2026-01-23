@@ -148,50 +148,6 @@ export default async function IncidentDetailPage({
         </div>
       )}
 
-      {/* Observability Links */}
-      {observabilityLinks.length > 0 && (
-        <div className="glass rounded-2xl p-6">
-          <h2 className="text-xl font-bold text-white mb-6">
-            View in Observability Tools
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {observabilityLinks.map((link) => (
-              <a
-                key={link.type}
-                href={link.url || "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-smooth border border-white/10 group"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white font-medium group-hover:text-purple-300 transition-smooth">
-                      {link.label}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      View in {link.type}
-                    </p>
-                  </div>
-                  <svg
-                    className="w-5 h-5 text-gray-400 group-hover:text-purple-300 transition-smooth"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                    />
-                  </svg>
-                </div>
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Service Ownership */}
       {(service?.team || service?.owner) && (
         <div className="glass rounded-2xl p-6">

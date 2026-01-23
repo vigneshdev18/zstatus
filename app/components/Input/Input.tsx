@@ -1,8 +1,9 @@
 import { cn } from "@/lib/utils/cn";
-import { ChangeEvent, forwardRef } from "react";
+import { ChangeEvent, forwardRef, useState } from "react";
 import InputLabel from "./InputLabel";
 import { InputFieldProps } from "@/lib/types/components.inputs";
 import InputError from "./InputError";
+import { HiEye, HiEyeOff } from "react-icons/hi";
 
 const InputField = forwardRef<
   HTMLInputElement | HTMLTextAreaElement,
@@ -28,6 +29,13 @@ const InputField = forwardRef<
     ref,
   ) => {
     const isUncontrolled = !("value" in props);
+    const [showPassword, setShowPassword] = useState(false);
+    const isPassword = props.type === "password";
+    const inputType = isPassword
+      ? showPassword
+        ? "text"
+        : "password"
+      : props.type;
 
     const _onChangeWrapper = (
       event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -99,9 +107,9 @@ const InputField = forwardRef<
               ref={ref as any}
               required={props?.required}
               className={baseClassName}
-              type="text"
               {...(isUncontrolled ? {} : { value: props.value || "" })}
               {...props}
+              type={inputType}
               onChange={_onChangeWrapper}
               onWheel={(event) => {
                 if (props.type === "number") {
@@ -118,6 +126,20 @@ const InputField = forwardRef<
             <div className="absolute bg-transparent border-0 outline-0 right-5 transition-all duration-300">
               {rightIcon}
             </div>
+          )}
+          {isPassword && (
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-4 text-gray-400 hover:text-white transition-colors"
+              tabIndex={-1}
+            >
+              {showPassword ? (
+                <HiEyeOff className="w-5 h-5" />
+              ) : (
+                <HiEye className="w-5 h-5" />
+              )}
+            </button>
           )}
         </div>
         {!hideError && errorPosition === "bottom" && (

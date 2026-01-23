@@ -9,6 +9,9 @@ export const metadata: Metadata = {
   title: "ZStatus - Service Monitoring Platform",
   description:
     "Monitor your services, track incidents, and maintain reliability",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({

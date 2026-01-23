@@ -2,6 +2,8 @@ import { Service } from "@/lib/types/service";
 import Link from "next/link";
 import { HiPencil } from "react-icons/hi";
 import Switch from "@/app/components/Switch/Switch";
+import { useAuth } from "@/lib/contexts/AuthContext";
+import { Fragment } from "react";
 
 interface ServiceListType {
   id: string;
@@ -32,6 +34,7 @@ const ServiceCard = ({
   isToggling: boolean;
   toggleAlerts: (serviceId: string, currentValue: boolean) => Promise<void>;
 }) => {
+  const { user } = useAuth();
   const alertsEnabled =
     service.alertsEnabled !== undefined ? service.alertsEnabled : true;
 
@@ -54,8 +57,8 @@ const ServiceCard = ({
                   service.lastStatus === "UP"
                     ? "bg-[var(--color-status-up)]"
                     : service.lastStatus === "DOWN"
-                    ? "bg-[var(--color-status-down)]"
-                    : "bg-gray-500"
+                      ? "bg-[var(--color-status-down)]"
+                      : "bg-gray-500"
                 }`}
               />
               {service.lastStatus === "UP" && (
@@ -77,25 +80,28 @@ const ServiceCard = ({
           {/* Actions and Metrics */}
           <div className="flex items-center gap-6">
             {/* Edit Button */}
-            <Link
-              href={`/services/${service.id}/edit`}
-              onClick={(e) => e.stopPropagation()}
-              className="p-2 glass rounded-lg hover:bg-white/10 transition-smooth"
-              title="Edit service"
-            >
-              <HiPencil className="w-4 h-4 text-gray-400 hover:text-white" />
-            </Link>
+            {user?.role !== "viewer" && (
+              <Fragment>
+                <Link
+                  href={`/services/${service.id}/edit`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="p-2 glass rounded-lg hover:bg-white/10 transition-smooth"
+                  title="Edit service"
+                >
+                  <HiPencil className="w-4 h-4 text-gray-400 hover:text-white" />
+                </Link>
 
-            {/* Alert Toggle */}
-            <Switch
-              checked={alertsEnabled}
-              onChange={() => toggleAlerts(service.id, alertsEnabled)}
-              disabled={isToggling}
-              label="Alerts"
-              labelPosition="left"
-              size="sm"
-            />
-
+                {/* Alert Toggle */}
+                <Switch
+                  checked={alertsEnabled}
+                  onChange={() => toggleAlerts(service.id, alertsEnabled)}
+                  disabled={isToggling}
+                  label="Alerts"
+                  labelPosition="left"
+                  size="sm"
+                />
+              </Fragment>
+            )}
             {/* Metrics */}
             <div className="flex items-center gap-6 text-sm">
               {service.avgResponseTime !== undefined &&
@@ -174,10 +180,10 @@ const ServiceCard = ({
                     service.lastAlertType === "INCIDENT_OPENED"
                       ? "text-red-400"
                       : service.lastAlertType === "INCIDENT_CLOSED"
-                      ? "text-green-400"
-                      : service.lastAlertType === "RESPONSE_TIME"
-                      ? "text-yellow-400"
-                      : "text-gray-400"
+                        ? "text-green-400"
+                        : service.lastAlertType === "RESPONSE_TIME"
+                          ? "text-yellow-400"
+                          : "text-gray-400"
                   }`}
                 >
                   {service.lastAlertType?.replace("_", " ")}

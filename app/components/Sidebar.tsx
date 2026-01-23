@@ -7,22 +7,18 @@ import { navigationSections } from "@/lib/constants/sidebar.constants";
 import { HiBell, HiChevronDown, HiChevronUp, HiLogout } from "react-icons/hi";
 import { useApiQuery } from "@/lib/hooks/useApiQuery";
 import { useApiMutation } from "@/lib/hooks/useApiMutation";
-import type { Service } from "@/lib/types/api.types";
-
-interface Settings {
-  globalHealthChecksEnabled: boolean;
-  globalAlertsEnabled: boolean;
-}
+import { useAuth } from "@/lib/contexts/AuthContext";
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { user, isLoading: authLoading } = useAuth();
   const [showAlertsList, setShowAlertsList] = useState(false);
 
   const { data: settingsResponse, isLoading: settingsLoading } = useApiQuery(
     "/api/settings",
     {
       refetchOnMount: true,
-    }
+    },
   );
 
   const settings = settingsResponse?.settings;
@@ -35,7 +31,7 @@ export default function Sidebar() {
   const servicesWithAlertsDisabled = useMemo(() => {
     if (!servicesData?.services) return [];
     return servicesData.services.filter(
-      (service) => service.alertsEnabled === false
+      (service) => service.alertsEnabled === false,
     );
   }, [servicesData]);
 
@@ -88,36 +84,60 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-6 overflow-y-auto">
-        {navigationSections.map((section) => (
-          <div key={section.title}>
-            <h3 className="px-4 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              {section.title}
-            </h3>
-            <div className="space-y-1">
-              {section.items.map((item) => {
-                const isActive =
-                  pathname === item.href || pathname?.startsWith(item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`
-                      flex items-center gap-3 px-4 py-3 rounded-lg transition-smooth
-                      ${
-                        isActive
-                          ? "bg-gradient-primary text-white shadow-gradient"
-                          : "text-gray-400 hover:text-white hover:bg-white/5"
-                      }
-                    `}
-                  >
-                    {item.icon}
-                    <span className="font-medium">{item.name}</span>
-                  </Link>
-                );
-              })}
+        {navigationSections.map((section) => {
+          // Filter items based on role
+          const visibleItems = section.items.filter((item) => {
+            // Hide configuration items while loading auth to prevent flashing restricted items
+            if (authLoading && section.title === "Configuration") {
+              return false;
+            }
+
+            if (user?.role === "viewer") {
+              // Only allow Groups in Configuration section for viewers
+              if (section.title === "Configuration") {
+                return item.name === "Groups";
+              }
+            }
+            // Admin only check (already present in data but we enforce here too if needed)
+            if (item.adminOnly && user?.role !== "admin") {
+              return false;
+            }
+            return true;
+          });
+
+          if (visibleItems.length === 0) return null;
+
+          return (
+            <div key={section.title}>
+              <h3 className="px-4 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                {section.title}
+              </h3>
+              <div className="space-y-1">
+                {visibleItems.map((item) => {
+                  const isActive =
+                    pathname === item.href || pathname?.startsWith(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`
+                        flex items-center gap-3 px-4 py-3 rounded-lg transition-smooth
+                        ${
+                          isActive
+                            ? "bg-gradient-primary text-white shadow-gradient"
+                            : "text-gray-400 hover:text-white hover:bg-white/5"
+                        }
+                      `}
+                    >
+                      {item.icon}
+                      <span className="font-medium">{item.name}</span>
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </nav>
 
       {/* Status & Alerts Section */}

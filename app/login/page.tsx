@@ -74,7 +74,7 @@ function LoginPageContent() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900">
+    <div className="min-h-screen flex items-center justify-center p-4 from-gray-900 bg-gray">
       <div className="w-full max-w-md">
         {/* Logo/Header */}
         <div className="text-center mb-8">

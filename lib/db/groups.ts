@@ -15,6 +15,7 @@ export async function createGroup(input: CreateGroupInput): Promise<Group> {
     name: input.name,
     description: input.description,
     webhookUrls: input.webhookUrls || [],
+    alertEmails: input.alertEmails || [],
     color: input.color,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -43,7 +44,7 @@ export async function getGroupById(id: string): Promise<Group | null> {
 // Update group
 export async function updateGroup(
   id: string,
-  input: UpdateGroupInput
+  input: UpdateGroupInput,
 ): Promise<Group | null> {
   const db = await getDatabase();
 
@@ -56,6 +57,8 @@ export async function updateGroup(
     updateData.description = input.description;
   if (input.webhookUrls !== undefined)
     updateData.webhookUrls = input.webhookUrls;
+  if (input.alertEmails !== undefined)
+    updateData.alertEmails = input.alertEmails;
   if (input.color !== undefined) updateData.color = input.color;
 
   const result = await db
@@ -63,7 +66,7 @@ export async function updateGroup(
     .findOneAndUpdate(
       { id },
       { $set: updateData },
-      { returnDocument: "after" }
+      { returnDocument: "after" },
     );
 
   return result || null;
@@ -84,7 +87,7 @@ export async function deleteGroup(id: string): Promise<boolean> {
 
 // Get group by service ID
 export async function getGroupByServiceId(
-  serviceId: string
+  serviceId: string,
 ): Promise<Group | null> {
   const db = await getDatabase();
 

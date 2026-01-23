@@ -1,5 +1,4 @@
 import bcrypt from "bcryptjs";
-import { Resend } from "resend";
 import {
   createOTP,
   getOTP,
@@ -9,9 +8,7 @@ import {
   isMaxAttemptsReached,
 } from "@/lib/db/otps";
 import { getUserByEmail } from "@/lib/db/users";
-
-const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM_EMAIL = process.env.FROM_EMAIL || "noreply@example.com";
+import { sendEmail } from "@/lib/notifications/email";
 
 // Generate 6-digit OTP
 export function generateOTP(): string {
@@ -26,7 +23,7 @@ export async function hashOTP(code: string): Promise<string> {
 // Verify OTP code
 export async function verifyOTPCode(
   code: string,
-  hashedCode: string
+  hashedCode: string,
 ): Promise<boolean> {
   return bcrypt.compare(code, hashedCode);
 }
@@ -62,9 +59,9 @@ export async function sendOTP(email: string): Promise<{
     // Store in database
     await createOTP(email, hashedCode);
     console.log("[Current OTP]", code);
-    // Send email
-    await resend.emails.send({
-      from: FROM_EMAIL,
+
+    // Send email using shared service
+    const emailResult = await sendEmail({
       to: email,
       subject: "Your ZStatus Login Code",
       html: `
@@ -84,6 +81,13 @@ export async function sendOTP(email: string): Promise<{
       `,
     });
 
+    if (!emailResult.success) {
+      return {
+        success: false,
+        error: emailResult.error || "Failed to send OTP email",
+      };
+    }
+
     return { success: true };
   } catch (error) {
     console.error("[OTP] Error sending OTP:", error);
@@ -97,7 +101,7 @@ export async function sendOTP(email: string): Promise<{
 // Verify OTP
 export async function verifyOTP(
   email: string,
-  code: string
+  code: string,
 ): Promise<{
   success: boolean;
   error?: string;

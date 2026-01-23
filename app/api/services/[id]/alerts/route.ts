@@ -1,20 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateService, getServiceById } from "@/lib/db/services";
+import { requireAdmin } from "@/lib/auth/permissions";
 
 // PATCH /api/services/[id]/alerts - Toggle alerts for a service
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
+
+    // Check admin permission
+    await requireAdmin(request);
     const body = await request.json();
 
     // Validate alertsEnabled is a boolean
     if (typeof body.alertsEnabled !== "boolean") {
       return NextResponse.json(
         { error: "alertsEnabled must be a boolean" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -39,7 +43,7 @@ export async function PATCH(
     console.error("[API] Error toggling alerts:", error);
     return NextResponse.json(
       { error: "Failed to toggle alerts" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

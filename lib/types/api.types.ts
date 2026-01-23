@@ -36,9 +36,21 @@ interface Service {
   redisOperations?: Array<{ command: string; args: string[] }>;
   redisKeys?: string[];
 
+  // Secret state flags (true if set in DB)
+  isMongoConnectionStringSet?: boolean;
+  isEsConnectionStringSet?: boolean;
+  isEsUsernameSet?: boolean;
+  isEsPasswordSet?: boolean;
+  isEsApiKeySet?: boolean;
+  isRedisConnectionStringSet?: boolean;
+  isRedisPasswordSet?: boolean;
+
   // Metadata
   groupId?: string;
   alertsEnabled: boolean;
+  emailAlertsEnabled?: boolean;
+  downtimeAlerts?: boolean;
+  responseTimeAlerts?: boolean;
   description?: string;
   team?: string;
   owner?: string;
@@ -104,6 +116,7 @@ interface Settings {
   globalHealthChecksEnabled: boolean;
   globalAlertsEnabled: boolean;
   alertCooldownMinutes: number;
+  serviceEmailsEnabled?: boolean;
 }
 
 interface Group {
@@ -112,6 +125,9 @@ interface Group {
   description?: string;
   color?: string;
   webhookUrls: string[];
+  alertEmails: string[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface User {
@@ -192,6 +208,16 @@ export type ApiResponseMap = {
   };
   "/api/auth/logout": {
     POST: { success: boolean };
+  };
+  "/api/auth/me": {
+    GET: {
+      user: {
+        id: string;
+        email: string;
+        name: string;
+        role: "admin" | "viewer";
+      };
+    };
   };
 };
 

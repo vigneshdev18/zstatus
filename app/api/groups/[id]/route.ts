@@ -21,6 +21,7 @@ export async function GET(
         name: group.name,
         description: group.description,
         webhookUrls: group.webhookUrls,
+        alertEmails: group.alertEmails,
         color: group.color,
         createdAt: group.createdAt.toISOString(),
         updatedAt: group.updatedAt.toISOString(),
@@ -48,6 +49,7 @@ export async function PUT(
       name: body.name,
       description: body.description,
       webhookUrls: body.webhookUrls,
+      alertEmails: body.alertEmails,
       color: body.color,
     };
 
@@ -63,6 +65,7 @@ export async function PUT(
         name: group.name,
         description: group.description,
         webhookUrls: group.webhookUrls,
+        alertEmails: group.alertEmails,
         color: group.color,
         createdAt: group.createdAt.toISOString(),
         updatedAt: group.updatedAt.toISOString(),

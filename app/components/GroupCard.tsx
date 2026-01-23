@@ -1,14 +1,20 @@
-import { Group } from "@/lib/types/group";
-import Link from "next/link";
-import { HiBell, HiInformationCircle, HiServer } from "react-icons/hi";
+"use client";
 
-const GroupCard = ({ group }: { group: Group & { serviceCount: number } }) => {
-  return (
-    <Link
-      key={group.id}
-      href={`/groups/${group.id}/edit`}
-      className="glass rounded-2xl p-6 hover:scale-105 transition-smooth cursor-pointer group"
-    >
+import { ClientGroup } from "@/lib/types/group";
+import Link from "next/link";
+import { HiBell, HiInformationCircle, HiServer, HiMail } from "react-icons/hi";
+import { useAuth } from "@/lib/contexts/AuthContext";
+
+const GroupCard = ({
+  group,
+}: {
+  group: ClientGroup & { serviceCount: number };
+}) => {
+  const { user } = useAuth();
+  const isViewer = user?.role === "viewer";
+
+  const CardContent = () => (
+    <>
       {/* Group Color Bar */}
       <div
         className="h-2 rounded-full mb-4"
@@ -43,6 +49,13 @@ const GroupCard = ({ group }: { group: Group & { serviceCount: number } }) => {
             {group.webhookUrls.length === 1 ? "channel" : "channels"}
           </span>
         </div>
+        <div className="flex items-center gap-2">
+          <HiMail className="w-5 h-5 text-green-400" />
+          <span className="text-gray-300">
+            {group.alertEmails.length}{" "}
+            {group.alertEmails.length === 1 ? "email" : "emails"}
+          </span>
+        </div>
       </div>
 
       {/* Webhook Status */}
@@ -52,6 +65,24 @@ const GroupCard = ({ group }: { group: Group & { serviceCount: number } }) => {
           <p className="text-xs text-yellow-300">No webhooks configured</p>
         </div>
       )}
+    </>
+  );
+
+  if (isViewer) {
+    return (
+      <div className="glass rounded-2xl p-6 group">
+        <CardContent />
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      key={group.id}
+      href={`/groups/${group.id}/edit`}
+      className="glass rounded-2xl p-6 hover:scale-105 transition-smooth cursor-pointer group"
+    >
+      <CardContent />
     </Link>
   );
 };

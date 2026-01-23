@@ -7,18 +7,24 @@ import { useApiQuery } from "@/lib/hooks/useApiQuery";
 import { useApiMutation } from "@/lib/hooks/useApiMutation";
 import PageHeader from "../components/PageHeader";
 import InputField from "../components/Input/Input";
+import { useAuth } from "@/lib/contexts/AuthContext";
+import Unauthorized from "@/app/components/Unauthorized";
 
 interface Settings {
   globalAlertsEnabled?: boolean;
+  serviceEmailsEnabled?: boolean;
   globalHealthChecksEnabled?: boolean;
   alertCooldownMinutes?: number;
 }
 
 export default function SettingsPage() {
+  const { user, isLoading: authLoading } = useAuth();
   const [alertCooldownMinutes, setAlertCooldownMinutes] = useState(5);
 
   // Fetch settings using useApiQuery
-  const { data: settingsResponse, isLoading } = useApiQuery("/api/settings");
+  const { data: settingsResponse, isLoading } = useApiQuery("/api/settings", {
+    enabled: user?.role === "admin",
+  });
 
   const settings = settingsResponse?.settings;
 
@@ -53,6 +59,14 @@ export default function SettingsPage() {
   const saveAlertCooldown = () => {
     updateSettings.mutate({ alertCooldownMinutes });
   };
+
+  if (authLoading) {
+    return <Loading message="Authenticating..." />;
+  }
+
+  if (user?.role === "viewer") {
+    return <Unauthorized />;
+  }
 
   if (isLoading || !settings) {
     return <Loading message="Loading settings..." />;
@@ -160,6 +174,34 @@ export default function SettingsPage() {
                 </div>
               </div>
             )}
+
+            {/* Service Email Alerts Toggle */}
+            <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+              <div className="flex-1">
+                <h3 className="text-lg font-medium text-white mb-1">
+                  Service Email Alerts
+                </h3>
+                <p className="text-sm text-gray-400">
+                  Master switch for service-related email notifications. This
+                  applies to downtime and response time alerts. OTP emails are
+                  not affected.
+                </p>
+              </div>
+              <div className="flex items-center gap-4 ml-6">
+                <Switch
+                  checked={settings.serviceEmailsEnabled || false}
+                  onChange={() => {
+                    if (!settings) return;
+                    updateSettings.mutate({
+                      serviceEmailsEnabled: !settings.serviceEmailsEnabled,
+                    });
+                  }}
+                  disabled={updateSettings.isPending}
+                  label={settings.serviceEmailsEnabled ? "Enabled" : "Disabled"}
+                  labelPosition="right"
+                />
+              </div>
+            </div>
 
             {/* Alert Cooldown Setting */}
             <div className="p-4 bg-white/5 rounded-xl">

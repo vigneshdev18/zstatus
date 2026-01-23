@@ -1,19 +1,35 @@
+"use client";
+
 import Link from "next/link";
-import { getAllGroups } from "@/lib/db/groups";
-import { getAllServices } from "@/lib/db/services";
+import { useApiQuery } from "@/lib/hooks/useApiQuery";
 import { HiBell, HiFolder, HiInformationCircle } from "react-icons/hi";
 import PageHeader from "../components/PageHeader";
 import GroupCard from "../components/GroupCard";
+import { useAuth } from "@/lib/contexts/AuthContext";
+import Unauthorized from "@/app/components/Unauthorized";
+import Loading from "@/app/components/Loading";
 
-export default async function GroupsPage() {
-  const groups = await getAllGroups();
-  const services = await getAllServices();
+export default function GroupsPage() {
+  const { user, isLoading: authLoading } = useAuth();
+
+  // Use client-side data fetching
+  const { data: groupsData, isLoading: groupsLoading } =
+    useApiQuery("/api/groups");
+  const { data: servicesData, isLoading: servicesLoading } =
+    useApiQuery("/api/services");
+
+  const groups = groupsData?.groups || [];
+  const services = servicesData?.services || [];
 
   // Count services per group
   const groupServiceCounts = groups.map((group) => ({
     ...group,
     serviceCount: services.filter((s) => s.groupId === group.id).length,
   }));
+
+  if (authLoading || groupsLoading || servicesLoading) {
+    return <Loading />;
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">
@@ -24,12 +40,14 @@ export default async function GroupsPage() {
           subtitle="Organize services and configure notification channels by team"
         />
 
-        <Link
-          href="/groups/new"
-          className="px-6 py-3 bg-gradient-primary rounded-xl text-white font-medium hover:scale-105 transition-smooth shadow-gradient"
-        >
-          + Create Group
-        </Link>
+        {user?.role !== "viewer" && (
+          <Link
+            href="/groups/new"
+            className="px-6 py-3 bg-gradient-primary rounded-xl text-white font-medium hover:scale-105 transition-smooth shadow-gradient"
+          >
+            + Create Group
+          </Link>
+        )}
       </div>
 
       {/* Groups Grid */}
@@ -41,12 +59,14 @@ export default async function GroupsPage() {
             Create your first group to organize services and configure
             notifications
           </p>
-          <Link
-            href="/groups/new"
-            className="inline-block px-6 py-3 bg-gradient-primary rounded-xl text-white font-medium hover:scale-105 transition-smooth shadow-gradient"
-          >
-            Create First Group
-          </Link>
+          {user?.role !== "viewer" && (
+            <Link
+              href="/groups/new"
+              className="inline-block px-6 py-3 bg-gradient-primary rounded-xl text-white font-medium hover:scale-105 transition-smooth shadow-gradient"
+            >
+              Create First Group
+            </Link>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

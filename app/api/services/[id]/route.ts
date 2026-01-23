@@ -59,10 +59,22 @@ export async function GET(
         redisOperations: service.redisOperations,
         redisKeys: service.redisKeys,
 
+        // Secret flags
+        isMongoConnectionStringSet: !!service.mongoConnectionString,
+        isEsConnectionStringSet: !!service.esConnectionString,
+        isEsUsernameSet: !!service.esUsername,
+        isEsPasswordSet: !!service.esPassword,
+        isEsApiKeySet: !!service.esApiKey,
+        isRedisConnectionStringSet: !!service.redisConnectionString,
+        isRedisPasswordSet: !!service.redisPassword,
+
         // Metadata
         groupId: service.groupId,
         alertsEnabled:
           service.alertsEnabled !== undefined ? service.alertsEnabled : true,
+        emailAlertsEnabled: service.emailAlertsEnabled,
+        downtimeAlerts: service.downtimeAlerts,
+        responseTimeAlerts: service.responseTimeAlerts,
         description: service.description,
         team: service.team,
         owner: service.owner,
@@ -136,6 +148,9 @@ export async function PUT(
       // Metadata
       groupId: body.groupId,
       alertsEnabled: body.alertsEnabled,
+      emailAlertsEnabled: body.emailAlertsEnabled,
+      downtimeAlerts: body.downtimeAlerts,
+      responseTimeAlerts: body.responseTimeAlerts,
       description: body.description,
       team: body.team,
       owner: body.owner,

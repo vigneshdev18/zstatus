@@ -15,6 +15,7 @@ export async function getSettings(): Promise<Settings> {
     const defaultSettings: Settings = {
       id: SETTINGS_ID,
       globalAlertsEnabled: true, // Alerts enabled by default
+      serviceEmailsEnabled: false, // Service emails disabled by default
       globalHealthChecksEnabled: true, // Health checks enabled by default
       alertCooldownMinutes: 5, // 5 minutes default cooldown
       createdAt: new Date(),
@@ -33,6 +34,11 @@ export async function getSettings(): Promise<Settings> {
       needsUpdate = true;
     }
 
+    if (settings.serviceEmailsEnabled === undefined) {
+      updates.serviceEmailsEnabled = false;
+      needsUpdate = true;
+    }
+
     if (settings.alertCooldownMinutes === undefined) {
       updates.alertCooldownMinutes = 5;
       needsUpdate = true;
@@ -41,7 +47,7 @@ export async function getSettings(): Promise<Settings> {
     if (needsUpdate) {
       await collection.updateOne(
         { id: SETTINGS_ID },
-        { $set: { ...updates, updatedAt: new Date() } }
+        { $set: { ...updates, updatedAt: new Date() } },
       );
       // Refetch to get updated document
       settings = (await collection.findOne({ id: SETTINGS_ID })) as Settings;
@@ -53,7 +59,7 @@ export async function getSettings(): Promise<Settings> {
 
 // Update global settings
 export async function updateSettings(
-  input: UpdateSettingsInput
+  input: UpdateSettingsInput,
 ): Promise<Settings> {
   const db = await getDatabase();
   const collection = db.collection<Settings>("settings");
@@ -65,6 +71,9 @@ export async function updateSettings(
   const updateFields: any = {};
   if (input.globalAlertsEnabled !== undefined) {
     updateFields.globalAlertsEnabled = input.globalAlertsEnabled;
+  }
+  if (input.serviceEmailsEnabled !== undefined) {
+    updateFields.serviceEmailsEnabled = input.serviceEmailsEnabled;
   }
   if (input.globalHealthChecksEnabled !== undefined) {
     updateFields.globalHealthChecksEnabled = input.globalHealthChecksEnabled;
@@ -82,7 +91,7 @@ export async function updateSettings(
         updatedAt: new Date(),
       },
     },
-    { returnDocument: "after" }
+    { returnDocument: "after" },
   );
 
   if (!result) {

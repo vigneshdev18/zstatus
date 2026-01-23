@@ -18,13 +18,15 @@ import {
   HiPlus,
   HiTrash,
 } from "react-icons/hi";
-import Select, { SelectOption } from "@/app/components/Select";
+import { SelectOption } from "@/app/components/Select";
 import FormInput from "@/app/components/FormInput";
+import FormSelect from "@/app/components/FormSelect";
 import PageHeader from "@/app/components/PageHeader";
 import Loading from "@/app/components/Loading";
 import Link from "next/link";
 import Button from "@/app/components/Button/Button";
 import Switch from "@/app/components/Switch/Switch";
+import Checkbox from "@/app/components/Checkbox/Checkbox";
 import { useApiQuery } from "@/lib/hooks/useApiQuery";
 import { useApiMutation } from "@/lib/hooks/useApiMutation";
 import type { Service } from "@/lib/types/api.types";
@@ -72,6 +74,9 @@ const createServiceSchema = (serviceType: ServiceType, isEditMode: boolean) => {
     grafanaDashboardId: yup.string().notRequired(),
     groupId: yup.string().nullable().notRequired(),
     alertsEnabled: yup.boolean().required(),
+    emailAlertsEnabled: yup.boolean().notRequired(),
+    downtimeAlerts: yup.boolean().notRequired(),
+    responseTimeAlerts: yup.boolean().notRequired(),
     httpMethod: yup.string().notRequired(),
     responseTimeWarningMs: yup.number().min(100).max(30000).notRequired(),
     responseTimeWarningAttempts: yup.number().min(1).max(10).notRequired(),
@@ -107,45 +112,31 @@ const createServiceSchema = (serviceType: ServiceType, isEditMode: boolean) => {
   } else if (serviceType === "mongodb") {
     return yup.object({
       ...baseSchema,
-      mongoConnectionString: yup
-        .string()
-        .test(
-          "required-check",
-          "MongoDB connection string is required",
-          function (value) {
-            if (isEditMode) return true; // Optional in edit mode (updates only)
-            return !!value;
-          },
-        ),
+      mongoConnectionString: yup.string().test({
+        name: "required-check",
+        message: "MongoDB connection string is required",
+        test: function (value) {
+          if (this.parent.isMongoConnectionStringSet) return true;
+          return !!value;
+        },
+      }),
+      isMongoConnectionStringSet: yup.boolean().notRequired(),
       mongoDatabase: yup.string().notRequired(),
     });
   } else if (serviceType === "elasticsearch") {
     return yup.object({
       ...baseSchema,
-      esConnectionString: yup
-        .string()
-        .test(
-          "required-check",
-          "Elasticsearch URL is required",
-          function (value) {
-            if (isEditMode) return true;
-            return !!value;
-          },
-        )
-        .test(
-          "is-valid-url",
-          "Must be a valid URL (http:// or https://)",
-          (value) => {
-            if (!value) return true; // Let required check handle empty
-            try {
-              const url = new URL(value);
-              return url.protocol === "http:" || url.protocol === "https:";
-            } catch {
-              return false;
-            }
-          },
-        ),
+      esConnectionString: yup.string().test({
+        name: "required-check",
+        message: "Elasticsearch URL is required",
+        test: function (value) {
+          if (this.parent.isEsConnectionStringSet) return true;
+          return !!value;
+        },
+      }),
+      isEsConnectionStringSet: yup.boolean().notRequired(),
       esIndex: yup.string().notRequired(),
+
       esQuery: yup
         .string()
         .notRequired()
@@ -159,23 +150,26 @@ const createServiceSchema = (serviceType: ServiceType, isEditMode: boolean) => {
           }
         }),
       esUsername: yup.string().notRequired(),
+      isEsUsernameSet: yup.boolean().notRequired(),
       esPassword: yup.string().notRequired(),
+      isEsPasswordSet: yup.boolean().notRequired(),
       esApiKey: yup.string().notRequired(),
+      isEsApiKeySet: yup.boolean().notRequired(),
     });
   } else if (serviceType === "redis") {
     return yup.object({
       ...baseSchema,
-      redisConnectionString: yup
-        .string()
-        .test(
-          "required-check",
-          "Redis connection string is required",
-          function (value) {
-            if (isEditMode) return true;
-            return !!value;
-          },
-        ),
+      redisConnectionString: yup.string().test({
+        name: "required-check",
+        message: "Redis connection string is required",
+        test: function (value) {
+          if (this.parent.isRedisConnectionStringSet) return true;
+          return !!value;
+        },
+      }),
+      isRedisConnectionStringSet: yup.boolean().notRequired(),
       redisPassword: yup.string().notRequired(),
+      isRedisPasswordSet: yup.boolean().notRequired(),
       redisDatabase: yup
         .number()
         .transform((value) => (Number.isNaN(value) ? null : value))
@@ -216,6 +210,9 @@ type ServiceFormData = {
   grafanaDashboardId?: string;
   groupId?: string | null;
   alertsEnabled: boolean;
+  emailAlertsEnabled: boolean;
+  downtimeAlerts: boolean;
+  responseTimeAlerts: boolean;
   httpMethod?: string;
   healthCheckUrl?: string;
   requestHeaders?: string;
@@ -242,6 +239,15 @@ type ServiceFormData = {
   retryDelayMs?: number;
   connectionPoolEnabled?: boolean;
   connectionPoolSize?: number;
+
+  // Secret flags
+  isMongoConnectionStringSet?: boolean;
+  isEsConnectionStringSet?: boolean;
+  isEsUsernameSet?: boolean;
+  isEsPasswordSet?: boolean;
+  isEsApiKeySet?: boolean;
+  isRedisConnectionStringSet?: boolean;
+  isRedisPasswordSet?: boolean;
 };
 
 const serviceTypeOptions = [
@@ -314,6 +320,9 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
       grafanaDashboardId: "",
       groupId: null,
       alertsEnabled: true,
+      emailAlertsEnabled: false,
+      downtimeAlerts: true,
+      responseTimeAlerts: false,
       httpMethod: "GET",
       healthCheckUrl: "",
       requestHeaders: "",
@@ -335,6 +344,14 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
       retryDelayMs: 1000,
       connectionPoolEnabled: true,
       connectionPoolSize: 1,
+      // Secret flags
+      isMongoConnectionStringSet: false,
+      isEsConnectionStringSet: false,
+      isEsUsernameSet: false,
+      isEsPasswordSet: false,
+      isEsApiKeySet: false,
+      isRedisConnectionStringSet: false,
+      isRedisPasswordSet: false,
     },
   });
 
@@ -347,8 +364,8 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
     formState: { isSubmitting, errors },
   } = methods;
 
-  const watchedGroupId = watch("groupId");
   const watchedAlertsEnabled = watch("alertsEnabled");
+  const watchedEmailAlertsEnabled = watch("emailAlertsEnabled");
 
   // Field array for Redis keys
   const {
@@ -375,6 +392,16 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
         groupId: service.groupId || null,
         alertsEnabled:
           service.alertsEnabled !== undefined ? service.alertsEnabled : true,
+        emailAlertsEnabled:
+          service.emailAlertsEnabled !== undefined
+            ? service.emailAlertsEnabled
+            : false,
+        downtimeAlerts:
+          service.downtimeAlerts !== undefined ? service.downtimeAlerts : true,
+        responseTimeAlerts:
+          service.responseTimeAlerts !== undefined
+            ? service.responseTimeAlerts
+            : false,
         httpMethod: service.httpMethod || "GET",
         healthCheckUrl: service.healthCheckUrl || "",
         requestHeaders: service.requestHeaders
@@ -418,6 +445,14 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
         retryDelayMs: service.retryDelayMs ?? 1000,
         connectionPoolEnabled: service.connectionPoolEnabled ?? true,
         connectionPoolSize: service.connectionPoolSize ?? 1,
+        // Secret flags
+        isMongoConnectionStringSet: service.isMongoConnectionStringSet,
+        isEsConnectionStringSet: service.isEsConnectionStringSet,
+        isEsUsernameSet: service.isEsUsernameSet,
+        isEsPasswordSet: service.isEsPasswordSet,
+        isEsApiKeySet: service.isEsApiKeySet,
+        isRedisConnectionStringSet: service.isRedisConnectionStringSet,
+        isRedisPasswordSet: service.isRedisPasswordSet,
       });
     }
   }, [service, reset]);
@@ -430,6 +465,13 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
     options: {
       onSuccess: (data) => {
         if (isEditMode) {
+          // Explicitly invalidate the specific service query to ensure secrets flags are updated
+          // eslint-disable-next-line @tanstack/query/no-unstable-deps
+          // @ts-ignore - access queryClient directly via import if needed, or rely on global invalidation logic
+          // Since we can't easily access queryClient here without refactoring, we rely on the list invalidation
+          // and navigation to trigger re-fetch.
+          // Ideally: queryClient.invalidateQueries(["api", `/api/services/${serviceId}`]);
+
           router.push(`/services/${serviceId}`);
         } else {
           router.push("/services");
@@ -452,6 +494,9 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
       checkInterval: data.checkInterval,
       groupId: data.groupId || (isEditMode ? null : undefined),
       alertsEnabled: data.alertsEnabled,
+      emailAlertsEnabled: data.emailAlertsEnabled,
+      downtimeAlerts: data.downtimeAlerts,
+      responseTimeAlerts: data.responseTimeAlerts,
       description: data.description || (isEditMode ? null : undefined),
       team: data.team || (isEditMode ? null : undefined),
       owner: data.owner || (isEditMode ? null : undefined),
@@ -550,10 +595,6 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
     ...groups.map((g) => ({ value: g.id, label: g.name })),
   ];
 
-  const selectedGroupOption = watchedGroupId
-    ? groupOptions.find((opt) => opt.value === watchedGroupId) || null
-    : null;
-
   return (
     <div className="max-w-5xl mx-auto space-y-8">
       <PageHeader
@@ -627,30 +668,13 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
                       required
                     />
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        HTTP Method
-                      </label>
-                      <Controller
-                        name="httpMethod"
-                        control={control}
-                        render={({ field }) => (
-                          <Select
-                            value={
-                              httpMethodOptions.find(
-                                (opt) => opt.value === field.value,
-                              ) || httpMethodOptions[0]
-                            }
-                            onChange={(option) =>
-                              field.onChange((option as SelectOption).value)
-                            }
-                            options={httpMethodOptions}
-                            isSearchable={false}
-                            instanceId="http-method-select"
-                          />
-                        )}
-                      />
-                    </div>
+                    <FormSelect
+                      name="httpMethod"
+                      label="HTTP Method"
+                      options={httpMethodOptions}
+                      isSearchable={false}
+                      instanceId="http-method-select"
+                    />
 
                     <FormInput
                       name="requestHeaders"
@@ -674,13 +698,21 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
 
                 {serviceType === "mongodb" && (
                   <>
-                    <FormInput
-                      name="mongoConnectionString"
-                      label="Connection String"
-                      placeholder="mongodb://localhost:27017"
-                      containerClassName="font-mono text-sm"
-                      required
-                    />
+                    <div className="relative">
+                      <FormInput
+                        name="mongoConnectionString"
+                        label="Connection String"
+                        placeholder="mongodb://localhost:27017"
+                        containerClassName="font-mono text-sm"
+                        required={!service?.isMongoConnectionStringSet}
+                      />
+                      {service?.isMongoConnectionStringSet &&
+                        !watch("mongoConnectionString") && (
+                          <div className="absolute top-9 right-3 text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded border border-green-500/30">
+                            Configured
+                          </div>
+                        )}
+                    </div>
 
                     <FormInput
                       name="mongoDatabase"
@@ -714,14 +746,22 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
 
                 {serviceType === "elasticsearch" && (
                   <>
-                    <FormInput
-                      name="esConnectionString"
-                      type="url"
-                      label="Connection URL"
-                      placeholder="http://localhost:9200"
-                      containerClassName="font-mono text-sm"
-                      required
-                    />
+                    <div className="relative">
+                      <FormInput
+                        name="esConnectionString"
+                        type="url"
+                        label="Connection URL"
+                        placeholder="http://localhost:9200"
+                        containerClassName="font-mono text-sm"
+                        required={!service?.isEsConnectionStringSet}
+                      />
+                      {service?.isEsConnectionStringSet &&
+                        !watch("esConnectionString") && (
+                          <div className="absolute top-9 right-3 text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded border border-green-500/30">
+                            Configured
+                          </div>
+                        )}
+                    </div>
 
                     <FormInput
                       name="esIndex"
@@ -758,32 +798,53 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
                       </h4>
 
                       <div className="grid grid-cols-2 gap-4">
-                        <FormInput
-                          name="esUsername"
-                          label="Username"
-                          placeholder="elastic"
-                          containerClassName="font-mono text-sm"
-                        />
+                        <div className="relative">
+                          <FormInput
+                            name="esUsername"
+                            label="Username"
+                            placeholder="elastic"
+                            containerClassName="font-mono text-sm"
+                          />
+                          {service?.isEsUsernameSet && !watch("esUsername") && (
+                            <div className="absolute top-9 right-3 text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded border border-green-500/30">
+                              Configured
+                            </div>
+                          )}
+                        </div>
 
-                        <FormInput
-                          name="esPassword"
-                          type="password"
-                          label="Password"
-                          placeholder="Enter password"
-                          containerClassName="font-mono text-sm"
-                        />
+                        <div className="relative">
+                          <FormInput
+                            name="esPassword"
+                            type="password"
+                            label="Password"
+                            placeholder="Enter password"
+                            containerClassName="font-mono text-sm"
+                          />
+                          {service?.isEsPasswordSet && !watch("esPassword") && (
+                            <div className="absolute top-9 right-12 text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded border border-green-500/30">
+                              Configured
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       <div className="text-xs text-gray-400 my-3 text-center">
                         OR
                       </div>
 
-                      <FormInput
-                        name="esApiKey"
-                        label="API Key"
-                        placeholder="Enter API key"
-                        containerClassName="font-mono text-sm"
-                      />
+                      <div className="relative">
+                        <FormInput
+                          name="esApiKey"
+                          label="API Key"
+                          placeholder="Enter API key"
+                          containerClassName="font-mono text-sm"
+                        />
+                        {service?.isEsApiKeySet && !watch("esApiKey") && (
+                          <div className="absolute top-9 right-3 text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded border border-green-500/30">
+                            Configured
+                          </div>
+                        )}
+                      </div>
 
                       <p className="text-xs text-gray-400 mt-2">
                         💡 Provide either username/password or API key for
@@ -795,20 +856,36 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
 
                 {serviceType === "redis" && (
                   <>
-                    <FormInput
-                      name="redisConnectionString"
-                      type="text"
-                      label="Connection String"
-                      placeholder="redis://localhost:6379"
-                      containerClassName="font-mono text-sm"
-                      required
-                    />
-                    <FormInput
-                      name="redisPassword"
-                      type="password"
-                      label="Password (optional)"
-                      placeholder="Enter password if required"
-                    />
+                    <div className="relative">
+                      <FormInput
+                        name="redisConnectionString"
+                        type="text"
+                        label="Connection String"
+                        placeholder="redis://localhost:6379"
+                        containerClassName="font-mono text-sm"
+                        required={!service?.isRedisConnectionStringSet}
+                      />
+                      {service?.isRedisConnectionStringSet &&
+                        !watch("redisConnectionString") && (
+                          <div className="absolute top-9 right-3 text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded border border-green-500/30">
+                            Configured
+                          </div>
+                        )}
+                    </div>
+                    <div className="relative">
+                      <FormInput
+                        name="redisPassword"
+                        type="password"
+                        label="Password (optional)"
+                        placeholder="Enter password if required"
+                      />
+                      {service?.isRedisPasswordSet &&
+                        !watch("redisPassword") && (
+                          <div className="absolute top-9 right-12 text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded border border-green-500/30">
+                            Configured
+                          </div>
+                        )}
+                    </div>
                     <FormInput
                       name="redisDatabase"
                       type="number"
@@ -991,144 +1068,205 @@ export default function ServiceForm({ serviceId }: ServiceFormProps) {
                 </div>
               </div>
             </div>
+            <div className="lg:col-span-1 space-y-6">
+              {/* Alert Settings */}
+              <div className="glass rounded-2xl p-6 space-y-6">
+                <h3 className="text-lg font-bold text-white">Alert Settings</h3>
 
-            {/* Advanced Settings */}
-            <div className="glass rounded-2xl p-6 space-y-6">
-              <h3 className="text-lg font-bold text-white">
-                Advanced Settings
-              </h3>
-
-              <div className="grid grid-cols-1 gap-4">
-                <div>
-                  <FormInput
-                    name="maxRetries"
-                    type="number"
-                    label="Max Retries"
-                    min="0"
-                    max="5"
-                    hideError
+                <div className="grid grid-cols-1 gap-6 flex flex-col">
+                  <FormSelect
+                    name="groupId"
+                    label="Alert Group"
+                    options={groupOptions}
+                    placeholder="Select a group..."
+                    instanceId="group-select"
                   />
-                  <p className="text-xs text-gray-400 mt-1">
-                    Number of retry attempts on failure (default: 2)
-                  </p>
+
+                  <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/10">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-white">Enable Alerts</h4>
+                      <p className="text-xs text-gray-400">
+                        Master switch for all alerts for this service
+                      </p>
+                    </div>
+                    <Controller
+                      name="alertsEnabled"
+                      control={control}
+                      render={({ field }) => (
+                        <Switch
+                          checked={field.value}
+                          onChange={field.onChange}
+                          label={field.value ? "Enabled" : "Disabled"}
+                          labelPosition="left"
+                        />
+                      )}
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <FormInput
-                    name="retryDelayMs"
-                    type="number"
-                    label="Retry Delay (ms)"
-                    min="100"
-                    max="10000"
-                    hideError
-                  />
-                  <p className="text-xs text-gray-400 mt-1">
-                    Initial delay between retries (default: 1000ms)
-                  </p>
+                {/* Email Alerts Configuration */}
+                <div className="border-t border-white/10 pt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h4 className="font-medium text-white flex items-center gap-2">
+                        Email Alerts
+                      </h4>
+                      <p className="text-xs text-gray-400">
+                        Configure email notifications for this service
+                      </p>
+                    </div>
+                    <Controller
+                      name="emailAlertsEnabled"
+                      control={control}
+                      render={({ field }) => (
+                        <Switch
+                          checked={field.value}
+                          onChange={field.onChange}
+                          label={field.value ? "Enabled" : "Disabled"}
+                          labelPosition="left"
+                        />
+                      )}
+                    />
+                  </div>
+
+                  {watchedEmailAlertsEnabled && (
+                    <div className="grid grid-cols-1 gap-4 bg-white/5 p-4 rounded-xl border border-white/10">
+                      <div className="flex items-center justify-between p-3 bg-black/20 rounded-lg gap-2">
+                        <div>
+                          <h5 className="font-medium text-white text-sm">
+                            Downtime Alerts
+                          </h5>
+                          <p className="text-xs text-gray-400">
+                            Notify when service goes DOWN or comes back UP
+                          </p>
+                        </div>
+                        <Controller
+                          name="downtimeAlerts"
+                          control={control}
+                          render={({ field }) => (
+                            <Checkbox
+                              checked={field.value}
+                              onChange={field.onChange}
+                              size="lg"
+                            />
+                          )}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between p-3 bg-black/20 rounded-lg gap-2">
+                        <div>
+                          <h5 className="font-medium text-white text-sm">
+                            Response Time Alerts
+                          </h5>
+                          <p className="text-xs text-gray-400">
+                            Notify when response time exceeds thresholds
+                          </p>
+                        </div>
+                        <Controller
+                          name="responseTimeAlerts"
+                          control={control}
+                          render={({ field }) => (
+                            <Checkbox
+                              checked={field.value}
+                              onChange={field.onChange}
+                              size="lg"
+                            />
+                          )}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {(serviceType === "mongodb" || serviceType === "redis") && (
-                <>
-                  <div className="border-t border-white/10 pt-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-sm font-medium text-gray-300">
-                        Connection Pooling
-                      </label>
-                      <Controller
-                        name="connectionPoolEnabled"
-                        control={control}
-                        render={({ field }) => (
-                          <button
-                            type="button"
-                            onClick={() => field.onChange(!field.value)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                              field.value ? "bg-purple-600" : "bg-gray-600"
-                            }`}
-                          >
-                            <span
-                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                field.value ? "translate-x-6" : "translate-x-1"
-                              }`}
-                            />
-                          </button>
-                        )}
-                      />
-                    </div>
-                    <p className="text-xs text-gray-400">
-                      Reuse connections between health checks for better
-                      performance
+              {/* Advanced Settings */}
+              <div className="glass rounded-2xl p-6 space-y-6">
+                <h3 className="text-lg font-bold text-white">
+                  Advanced Settings
+                </h3>
+
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <FormInput
+                      name="maxRetries"
+                      type="number"
+                      label="Max Retries"
+                      min="0"
+                      max="5"
+                      hideError
+                    />
+                    <p className="text-xs text-gray-400 mt-1">
+                      Number of retry attempts on failure (default: 2)
                     </p>
                   </div>
 
-                  {watch("connectionPoolEnabled") && (
-                    <div>
-                      <FormInput
-                        name="connectionPoolSize"
-                        type="number"
-                        label="Pool Size"
-                        min="1"
-                        max="20"
-                        hideError
-                      />
-                      <p className="text-xs text-gray-400 mt-1">
-                        Maximum number of pooled connections (default: 1)
+                  <div>
+                    <FormInput
+                      name="retryDelayMs"
+                      type="number"
+                      label="Retry Delay (ms)"
+                      min="100"
+                      max="10000"
+                      hideError
+                    />
+                    <p className="text-xs text-gray-400 mt-1">
+                      Initial delay between retries (default: 1000ms)
+                    </p>
+                  </div>
+                </div>
+
+                {(serviceType === "mongodb" || serviceType === "redis") && (
+                  <>
+                    <div className="border-t border-white/10 pt-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-sm font-medium text-gray-300">
+                          Connection Pooling
+                        </label>
+                        <Controller
+                          name="connectionPoolEnabled"
+                          control={control}
+                          render={({ field }) => (
+                            <button
+                              type="button"
+                              onClick={() => field.onChange(!field.value)}
+                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                field.value ? "bg-purple-600" : "bg-gray-600"
+                              }`}
+                            >
+                              <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                  field.value
+                                    ? "translate-x-6"
+                                    : "translate-x-1"
+                                }`}
+                              />
+                            </button>
+                          )}
+                        />
+                      </div>
+                      <p className="text-xs text-gray-400">
+                        Reuse connections between health checks for better
+                        performance
                       </p>
                     </div>
-                  )}
-                </>
-              )}
 
-              <h3 className="text-lg font-bold text-white">Ownership</h3>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Group (Optional)
-                </label>
-                <Controller
-                  name="groupId"
-                  control={control}
-                  render={({ field }) => (
-                    <Select
-                      value={selectedGroupOption}
-                      onChange={(option) =>
-                        field.onChange((option as SelectOption)?.value || null)
-                      }
-                      options={groupOptions}
-                      isClearable
-                      placeholder="Select a group..."
-                      instanceId="group-select"
-                    />
-                  )}
-                />
-                <p className="text-xs text-gray-400 mt-2">
-                  Services without a group won't send notifications
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-3">
-                  Notifications
-                </label>
-                <Controller
-                  name="alertsEnabled"
-                  control={control}
-                  render={({ field }) => (
-                    <>
-                      <Switch
-                        checked={field.value}
-                        onChange={field.onChange}
-                        label={field.value ? "Enabled" : "Disabled"}
-                        labelPosition="right"
-                      />
-                      <p className="text-xs text-gray-400 mt-2">
-                        {field.value
-                          ? "Notifications will be sent when incidents occur"
-                          : "Health checks continue, but no notifications will be sent"}
-                      </p>
-                    </>
-                  )}
-                />
+                    {watch("connectionPoolEnabled") && (
+                      <div>
+                        <FormInput
+                          name="connectionPoolSize"
+                          type="number"
+                          label="Pool Size"
+                          min="1"
+                          max="20"
+                          hideError
+                        />
+                        <p className="text-xs text-gray-400 mt-1">
+                          Maximum number of pooled connections (default: 1)
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           </div>

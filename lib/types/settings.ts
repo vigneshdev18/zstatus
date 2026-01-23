@@ -2,6 +2,7 @@
 export interface Settings {
   id: string; // Always "global" for singleton pattern
   globalAlertsEnabled: boolean; // Master switch for all alerts
+  serviceEmailsEnabled: boolean; // Global switch for service email alerts
   globalHealthChecksEnabled: boolean; // Master switch for all health checks
   alertCooldownMinutes: number; // Minimum delay between alerts for same service (in minutes)
   createdAt: Date;
@@ -11,6 +12,7 @@ export interface Settings {
 // Input for updating settings
 export interface UpdateSettingsInput {
   globalAlertsEnabled?: boolean;
+  serviceEmailsEnabled?: boolean;
   globalHealthChecksEnabled?: boolean;
   alertCooldownMinutes?: number;
 }

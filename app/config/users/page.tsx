@@ -6,9 +6,12 @@ import Loading from "@/app/components/Loading";
 import { HiTrash, HiPlus, HiUserCircle } from "react-icons/hi";
 import AddUserModal from "@/app/components/AddUserModal";
 import Spinner from "@/app/components/Spinner";
+import { useAuth } from "@/lib/contexts/AuthContext";
+import Unauthorized from "@/app/components/Unauthorized";
 
 export default function UsersPage() {
   const [showAddModal, setShowAddModal] = useState(false);
+  const { user, isLoading: authLoading } = useAuth();
 
   // Fetch users
   const { data, isLoading, refetch } = useApiQuery<"/api/users">("/api/users");
@@ -37,8 +40,12 @@ export default function UsersPage() {
     refetch();
   };
 
-  if (isLoading) {
+  if (isLoading || authLoading) {
     return <Loading />;
+  }
+
+  if (user?.role === "viewer") {
+    return <Unauthorized />;
   }
 
   return (

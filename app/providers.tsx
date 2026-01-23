@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { useState } from "react";
+import { AuthProvider } from "@/lib/contexts/AuthContext";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   // Create a client instance per component mount to avoid sharing state between requests
@@ -27,14 +28,16 @@ export default function Providers({ children }: { children: React.ReactNode }) {
             retry: 1,
           },
         },
-      })
+      }),
   );
 
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
-      {/* DevTools only appear in development */}
-      <ReactQueryDevtools initialIsOpen={false} />
+      <AuthProvider>
+        {children}
+        {/* DevTools only appear in development */}
+        <ReactQueryDevtools initialIsOpen={false} />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

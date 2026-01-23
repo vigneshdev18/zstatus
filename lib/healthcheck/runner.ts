@@ -218,7 +218,7 @@ export async function runMongoHealthCheck(
   let shouldCloseClient = true;
 
   try {
-    const { result, retryCount } = await withRetry(
+    const { retryCount } = await withRetry(
       async () => {
         if (usePool) {
           // Use connection pool
@@ -332,7 +332,7 @@ export async function runElasticsearchHealthCheck(
       }
     }
 
-    const { result, retryCount } = await withRetry(
+    const { retryCount } = await withRetry(
       async () => {
         // If index and query are provided, run a search query
         if (options?.index && options?.query) {

@@ -1,9 +1,9 @@
 "use client";
 
-import { use, useState } from "react";
+import { use } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { useApiQuery, usePagination } from "@/lib/hooks";
+import { useApiQuery } from "@/lib/hooks";
 import DeleteServiceButton from "@/app/components/DeleteServiceButton";
 import RefreshServiceButton from "@/app/components/RefreshServiceButton";
 import { Tabs } from "@/app/components/Tabs";
@@ -14,7 +14,6 @@ import {
   AlertsTab,
   ServiceDetailSkeleton,
 } from "@/app/components/service";
-import type { Service } from "@/lib/types/api.types";
 
 export default function ServiceDetailPage({
   params,
@@ -23,9 +22,12 @@ export default function ServiceDetailPage({
 }) {
   const { id } = use(params);
 
+  const { data: userData } = useApiQuery("/api/auth/me");
+  const user = userData?.user;
+
   // Fetch service details
   const { data: serviceData, isLoading: serviceLoading } = useApiQuery(
-    `/api/services/${id}` as "/api/services/[id]"
+    `/api/services/${id}` as "/api/services/[id]",
   );
 
   const service = serviceData?.service;

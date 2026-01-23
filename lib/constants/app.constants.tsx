@@ -1,2 +1,3 @@
 export const TOKEN_KEY = "status_auth_token";
 export const isProduction = process.env.NODE_ENV === "production";
+export const isEmailEnabled = process.env.ENABLE_EMAILS === "true";

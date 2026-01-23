@@ -4,15 +4,25 @@ import ReactSelect, {
   Props as ReactSelectProps,
   StylesConfig,
 } from "react-select";
+import { useId } from "react";
+import { cn } from "@/lib/utils/cn";
+import InputLabel from "@/app/components/Input/InputLabel";
+import InputError from "@/app/components/Input/InputError";
 
 export interface SelectOption {
   value: string;
   label: string;
 }
 
-interface SelectProps extends Omit<ReactSelectProps<SelectOption>, "styles"> {
-  error?: boolean;
+export interface SelectProps extends Omit<ReactSelectProps<SelectOption>, "styles"> {
+  error?: string | boolean;
   instanceId?: string;
+  label?: string;
+  required?: boolean;
+  labelClassName?: string;
+  containerClassName?: string;
+  errorPosition?: "top" | "bottom";
+  hideError?: boolean;
 }
 
 const customStyles: StylesConfig<SelectOption> = {
@@ -106,43 +116,88 @@ const customStyles: StylesConfig<SelectOption> = {
   }),
 };
 
-import { useId } from "react";
-
-export default function Select({ instanceId, ...props }: SelectProps) {
+export default function Select({
+  instanceId,
+  label,
+  required,
+  labelClassName,
+  containerClassName,
+  error,
+  errorPosition = "bottom",
+  hideError,
+  ...props
+}: SelectProps) {
   const generatedId = useId();
   const stableId = instanceId || generatedId;
+  const selectId = props.id || stableId;
+  const errorMessage = typeof error === "string" ? error : error ? "This field is required" : undefined;
+
+  // Update styles to show error state
+  const errorStyles: StylesConfig<SelectOption> = error
+    ? {
+        ...customStyles,
+        control: (provided, state) => {
+          const baseControl = customStyles.control?.(provided, state) || {};
+          return {
+            ...baseControl,
+            borderColor: "rgb(239, 68, 68)", // red-500
+            "&:hover": {
+              borderColor: "rgb(239, 68, 68)",
+            },
+          };
+        },
+      }
+    : customStyles;
 
   return (
-    <ReactSelect
-      {...props}
-      instanceId={stableId}
-      styles={customStyles}
-      className="react-select-container"
-      classNamePrefix="react-select"
-      theme={(theme) => ({
-        ...theme,
-        borderRadius: 12,
-        colors: {
-          ...theme.colors,
-          primary: "rgb(139, 92, 246)", // purple-500
-          primary75: "rgba(139, 92, 246, 0.75)",
-          primary50: "rgba(139, 92, 246, 0.5)",
-          primary25: "rgba(139, 92, 246, 0.25)",
-          danger: "rgb(239, 68, 68)", // red-500
-          dangerLight: "rgba(239, 68, 68, 0.25)",
-          neutral0: "rgba(17, 24, 39, 0.95)", // dark background
-          neutral5: "rgba(255, 255, 255, 0.05)",
-          neutral10: "rgba(255, 255, 255, 0.1)",
-          neutral20: "rgba(255, 255, 255, 0.2)",
-          neutral30: "rgba(255, 255, 255, 0.3)",
-          neutral40: "rgba(255, 255, 255, 0.4)",
-          neutral50: "rgba(255, 255, 255, 0.5)",
-          neutral60: "rgba(255, 255, 255, 0.6)",
-          neutral70: "rgba(255, 255, 255, 0.7)",
-          neutral80: "rgba(255, 255, 255, 0.8)",
-          neutral90: "rgba(255, 255, 255, 0.9)",
-        },
-      })}
-    />
+    <div className={cn("w-full", containerClassName)}>
+      <div className="flex justify-between items-end">
+        <InputLabel
+          required={required}
+          name={props.name}
+          label={label}
+          htmlFor={selectId}
+          className={labelClassName}
+        />
+        {!hideError && errorPosition === "top" && (
+          <InputError className="mb-1">{errorMessage}</InputError>
+        )}
+      </div>
+      <ReactSelect
+        {...props}
+        id={selectId}
+        instanceId={stableId}
+        styles={errorStyles}
+        className="react-select-container"
+        classNamePrefix="react-select"
+        theme={(theme) => ({
+          ...theme,
+          borderRadius: 12,
+          colors: {
+            ...theme.colors,
+            primary: "rgb(139, 92, 246)", // purple-500
+            primary75: "rgba(139, 92, 246, 0.75)",
+            primary50: "rgba(139, 92, 246, 0.5)",
+            primary25: "rgba(139, 92, 246, 0.25)",
+            danger: "rgb(239, 68, 68)", // red-500
+            dangerLight: "rgba(239, 68, 68, 0.25)",
+            neutral0: "rgba(17, 24, 39, 0.95)", // dark background
+            neutral5: "rgba(255, 255, 255, 0.05)",
+            neutral10: "rgba(255, 255, 255, 0.1)",
+            neutral20: "rgba(255, 255, 255, 0.2)",
+            neutral30: "rgba(255, 255, 255, 0.3)",
+            neutral40: "rgba(255, 255, 255, 0.4)",
+            neutral50: "rgba(255, 255, 255, 0.5)",
+            neutral60: "rgba(255, 255, 255, 0.6)",
+            neutral70: "rgba(255, 255, 255, 0.7)",
+            neutral80: "rgba(255, 255, 255, 0.8)",
+            neutral90: "rgba(255, 255, 255, 0.9)",
+          },
+        })}
+      />
+      {!hideError && errorPosition === "bottom" && (
+        <InputError>{errorMessage}</InputError>
+      )}
+    </div>
   );
 }
