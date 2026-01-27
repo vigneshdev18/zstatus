@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { HiClock, HiCalendar } from "react-icons/hi";
 import CustomDropdown, { DropdownTrigger } from "./CustomDropdown";
 
@@ -117,6 +117,22 @@ export default function TimeRangeDropdown({
   const [customTo, setCustomTo] = useState("");
 
   const timeRanges = getTimeRanges();
+
+  // Update custom inputs when showing custom view or value changes
+  useEffect(() => {
+    if (showCustom && value.value === "custom" && value.from && value.to) {
+      // Format dates for datetime-local input (YYYY-MM-DDThh:mm)
+      // Using local time
+      const formatDate = (date: Date) => {
+        const d = new Date(date);
+        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        return d.toISOString().slice(0, 16);
+      };
+
+      setCustomFrom(formatDate(value.from));
+      setCustomTo(formatDate(value.to));
+    }
+  }, [showCustom, value]);
 
   const handleQuickSelect = (range: TimeRange) => {
     onChange(range);

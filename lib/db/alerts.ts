@@ -114,6 +114,8 @@ export async function getAlertsByServiceIdPaginated(
   filters?: {
     severity?: string;
     type?: string;
+    fromDate?: Date;
+    toDate?: Date;
   },
 ): Promise<Alert[]> {
   const db = await getDatabase();
@@ -131,6 +133,17 @@ export async function getAlertsByServiceIdPaginated(
     query.type = filters.type;
   }
 
+  // Time range filter
+  if (filters?.fromDate || filters?.toDate) {
+    query.createdAt = {};
+    if (filters.fromDate) {
+      query.createdAt.$gte = filters.fromDate;
+    }
+    if (filters.toDate) {
+      query.createdAt.$lte = filters.toDate;
+    }
+  }
+
   return await db
     .collection<Alert>(ALERTS_COLLECTION)
     .find(query)
@@ -146,6 +159,8 @@ export async function countAlertsByServiceId(
   filters?: {
     severity?: string;
     type?: string;
+    fromDate?: Date;
+    toDate?: Date;
   },
 ): Promise<number> {
   const db = await getDatabase();
@@ -161,6 +176,17 @@ export async function countAlertsByServiceId(
   // Type filter
   if (filters?.type && filters.type !== "all") {
     query.type = filters.type;
+  }
+
+  // Time range filter
+  if (filters?.fromDate || filters?.toDate) {
+    query.createdAt = {};
+    if (filters.fromDate) {
+      query.createdAt.$gte = filters.fromDate;
+    }
+    if (filters.toDate) {
+      query.createdAt.$lte = filters.toDate;
+    }
   }
 
   return await db.collection<Alert>(ALERTS_COLLECTION).countDocuments(query);

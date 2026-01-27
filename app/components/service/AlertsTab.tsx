@@ -45,11 +45,17 @@ export default function AlertsTab({ serviceId }: AlertsTabProps) {
   });
 
   // Filter state for alerts
+  const [timeRange, setTimeRange] = useState<string>("all");
   const [severity, setSeverity] = useState<string>("all");
   const [alertType, setAlertType] = useState<string>("all");
 
   // Handle filter application from popover
-  const handleApplyFilters = (filters: { severity: string; type: string }) => {
+  const handleApplyFilters = (filters: {
+    timeRange: string;
+    severity: string;
+    type: string;
+  }) => {
+    setTimeRange(filters.timeRange);
     setSeverity(filters.severity);
     setAlertType(filters.type);
     setAlertsPage(1); // Reset to first page when applying filters
@@ -63,6 +69,65 @@ export default function AlertsTab({ serviceId }: AlertsTabProps) {
       pageSize: alertsPageSize,
     };
 
+    // Time range filter
+    if (timeRange !== "all") {
+      const now = new Date();
+      let fromDate: Date | undefined;
+
+      // Handle custom range
+      if (timeRange.startsWith("custom:")) {
+        const parts = timeRange.split(":");
+        if (parts.length === 3) {
+          fromDate = new Date(parseInt(parts[1]));
+          const toDate = new Date(parseInt(parts[2]));
+          params.toDate = toDate.toISOString();
+        }
+      } else {
+        switch (timeRange) {
+          case "5m":
+            fromDate = new Date(now.getTime() - 5 * 60 * 1000);
+            break;
+          case "15m":
+            fromDate = new Date(now.getTime() - 15 * 60 * 1000);
+            break;
+          case "30m":
+            fromDate = new Date(now.getTime() - 30 * 60 * 1000);
+            break;
+          case "1h":
+            fromDate = new Date(now.getTime() - 60 * 60 * 1000);
+            break;
+          case "3h":
+            fromDate = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+            break;
+          case "6h":
+            fromDate = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+            break;
+          case "12h":
+            fromDate = new Date(now.getTime() - 12 * 60 * 60 * 1000);
+            break;
+          case "24h":
+            fromDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            break;
+          case "2d":
+            fromDate = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+            break;
+          case "7d":
+            fromDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            break;
+          case "30d":
+            fromDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            break;
+          case "90d":
+            fromDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+            break;
+        }
+      }
+
+      if (fromDate) {
+        params.fromDate = fromDate.toISOString();
+      }
+    }
+
     if (severity !== "all") {
       params.severity = severity;
     }
@@ -71,7 +136,7 @@ export default function AlertsTab({ serviceId }: AlertsTabProps) {
     }
 
     return params;
-  }, [serviceId, alertsPage, alertsPageSize, severity, alertType]);
+  }, [serviceId, alertsPage, alertsPageSize, timeRange, severity, alertType]);
 
   // Fetch paginated alerts
   const { data: alertsData, isLoading: alertsLoading } =
@@ -132,9 +197,10 @@ export default function AlertsTab({ serviceId }: AlertsTabProps) {
       <div className="mb-4 pb-4 border-b border-white/10">
         <div className="flex justify-between items-center">
           <div className="text-sm text-gray-400">
-            Filter alerts by severity and type
+            Filter alerts by time range, severity and type
           </div>
           <AlertsFiltersPopover
+            timeRange={timeRange}
             severity={severity}
             type={alertType}
             onApplyFilters={handleApplyFilters}
@@ -143,16 +209,43 @@ export default function AlertsTab({ serviceId }: AlertsTabProps) {
         </div>
 
         {/* Active Filters Display */}
-        {(severity !== "all" || alertType !== "all") && (
+        {(timeRange !== "all" || severity !== "all" || alertType !== "all") && (
           <div className="mt-3 flex flex-wrap gap-2">
+            {timeRange !== "all" && (
+              <span className="px-3 py-1 bg-purple-500/20 text-purple-300 rounded-full text-xs font-medium">
+                Time:{" "}
+                {timeRange === "all"
+                  ? "All Time"
+                  : timeRange.startsWith("custom:")
+                    ? (() => {
+                        const parts = timeRange.split(":");
+                        if (parts.length === 3) {
+                          const from = new Date(parseInt(parts[1]));
+                          const to = new Date(parseInt(parts[2]));
+                          return `${from.toLocaleDateString()} ${from.toLocaleTimeString(
+                            [],
+                            {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            },
+                          )} - ${to.toLocaleDateString()} ${to.toLocaleTimeString(
+                            [],
+                            { hour: "2-digit", minute: "2-digit" },
+                          )}`;
+                        }
+                        return "Custom Range";
+                      })()
+                    : `Last ${timeRange}`}
+              </span>
+            )}
             {severity !== "all" && (
               <span
                 className={`px-3 py-1 rounded-full text-xs font-medium ${
                   severity === "CRITICAL"
                     ? "bg-red-500/20 text-red-300"
                     : severity === "WARNING"
-                    ? "bg-yellow-500/20 text-yellow-300"
-                    : "bg-blue-500/20 text-blue-300"
+                      ? "bg-yellow-500/20 text-yellow-300"
+                      : "bg-blue-500/20 text-blue-300"
                 }`}
               >
                 Severity: {severity}
@@ -201,14 +294,14 @@ export default function AlertsTab({ serviceId }: AlertsTabProps) {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span
                         className={`px-2 py-1 rounded text-xs font-medium border ${getSeverityColor(
-                          alert.severity
+                          alert.severity,
                         )}`}
                       >
                         {alert.severity}
                       </span>
                       <span
                         className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(
-                          alert.status
+                          alert.status,
                         )}`}
                       >
                         {alert.status}

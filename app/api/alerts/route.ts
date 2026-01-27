@@ -25,16 +25,20 @@ export async function GET(request: NextRequest) {
           page,
           pageSize,
           10, // default page size
-          100 // max page size
+          100, // max page size
         );
 
       // Parse filter parameters
       const severity = searchParams.get("severity");
       const type = searchParams.get("type");
+      const fromDate = searchParams.get("fromDate");
+      const toDate = searchParams.get("toDate");
 
       const filters = {
         severity: severity || undefined,
         type: type || undefined,
+        fromDate: fromDate ? new Date(fromDate) : undefined,
+        toDate: toDate ? new Date(toDate) : undefined,
       };
 
       const offset = calculateOffset(currentPage, currentPageSize);
@@ -43,7 +47,7 @@ export async function GET(request: NextRequest) {
           serviceId,
           offset,
           currentPageSize,
-          filters
+          filters,
         ),
         countAlertsByServiceId(serviceId, filters),
       ]);
@@ -51,7 +55,7 @@ export async function GET(request: NextRequest) {
       const paginationMetadata = generatePaginationMetadata(
         currentPage,
         currentPageSize,
-        totalCount
+        totalCount,
       );
 
       return NextResponse.json({
@@ -98,7 +102,7 @@ export async function GET(request: NextRequest) {
     console.error("[API] Error fetching alerts:", error);
     return NextResponse.json(
       { error: "Failed to fetch alerts" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

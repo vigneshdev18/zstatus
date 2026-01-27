@@ -8,6 +8,21 @@ import { TimeRange } from "@/app/components/TimeRangeDropdown";
 export function stringToTimeRange(value: string): TimeRange {
   const now = new Date();
 
+  // Handle custom range format: "custom:<startTimestamp>:<endTimestamp>"
+  if (value.startsWith("custom:")) {
+    const parts = value.split(":");
+    if (parts.length === 3) {
+      const from = new Date(parseInt(parts[1]));
+      const to = new Date(parseInt(parts[2]));
+      return {
+        label: "Custom range",
+        value: "custom",
+        from,
+        to,
+      };
+    }
+  }
+
   switch (value) {
     case "5m":
       return {
@@ -107,8 +122,11 @@ export function stringToTimeRange(value: string): TimeRange {
 /**
  * Convert a TimeRange object to a string value
  * @param timeRangeObj - TimeRange object
- * @returns String representation of the time range (e.g., "5m", "1h", "7d")
+ * @returns String representation of the time range (e.g., "5m", "1h", "custom:123:456")
  */
 export function timeRangeToString(timeRangeObj: TimeRange): string {
+  if (timeRangeObj.value === "custom") {
+    return `custom:${timeRangeObj.from.getTime()}:${timeRangeObj.to.getTime()}`;
+  }
   return timeRangeObj.value;
 }

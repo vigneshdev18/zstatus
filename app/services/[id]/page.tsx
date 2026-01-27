@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useMemo } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { useApiQuery } from "@/lib/hooks";
@@ -31,6 +31,21 @@ export default function ServiceDetailPage({
   );
 
   const service = serviceData?.service;
+
+  const serviceTabs = useMemo(() => {
+    return [
+      {
+        id: "health-checks",
+        label: "Recent Health Checks",
+        content: <HealthChecksTab serviceId={id} />,
+      },
+      {
+        id: "alerts",
+        label: "All Alerts",
+        content: <AlertsTab serviceId={id} />,
+      },
+    ];
+  }, [id]);
 
   // NOW we can do conditional logic
   if (serviceLoading) {
@@ -164,21 +179,7 @@ export default function ServiceDetailPage({
           {/* Right Column - Tabs with Health Checks and Alerts */}
           <GridItem colSpan={2} className="overflow-hidden">
             <div className="glass rounded-2xl p-6 h-full flex flex-col">
-              <Tabs
-                tabs={[
-                  {
-                    id: "health-checks",
-                    label: "Recent Health Checks",
-                    content: <HealthChecksTab serviceId={id} />,
-                  },
-                  {
-                    id: "alerts",
-                    label: "All Alerts",
-                    content: <AlertsTab serviceId={id} />,
-                  },
-                ]}
-                defaultTab="health-checks"
-              />
+              <Tabs tabs={serviceTabs} defaultTab="health-checks" />
             </div>
           </GridItem>
         </Grid>

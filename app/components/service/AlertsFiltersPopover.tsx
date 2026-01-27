@@ -3,32 +3,48 @@
 import { useState, useEffect } from "react";
 import { HiFilter } from "react-icons/hi";
 import Popover from "@/app/components/Popover";
+import {
+  stringToTimeRange,
+  timeRangeToString,
+} from "@/lib/utils/timeRangeHelpers";
+import TimeRangeDropdown, {
+  TimeRange,
+} from "@/app/components/TimeRangeDropdown";
 
 interface AlertsFiltersPopoverProps {
+  timeRange: string;
   severity: string;
   type: string;
-  onApplyFilters: (filters: { severity: string; type: string }) => void;
+  onApplyFilters: (filters: {
+    timeRange: string;
+    severity: string;
+    type: string;
+  }) => void;
   align?: "start" | "center" | "end";
 }
 
 export default function AlertsFiltersPopover({
+  timeRange,
   severity,
   type,
   onApplyFilters,
   align = "center",
 }: AlertsFiltersPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [tempTimeRange, setTempTimeRange] = useState(timeRange);
   const [tempSeverity, setTempSeverity] = useState(severity);
   const [tempType, setTempType] = useState(type);
 
   // Update temp values when props change
   useEffect(() => {
+    setTempTimeRange(timeRange);
     setTempSeverity(severity);
     setTempType(type);
-  }, [severity, type]);
+  }, [timeRange, severity, type]);
 
   const handleApply = () => {
     onApplyFilters({
+      timeRange: tempTimeRange,
       severity: tempSeverity,
       type: tempType,
     });
@@ -37,13 +53,15 @@ export default function AlertsFiltersPopover({
 
   const handleCancel = () => {
     // Reset temp values to current applied values
+    setTempTimeRange(timeRange);
     setTempSeverity(severity);
     setTempType(type);
     setIsOpen(false);
   };
 
   // Check if there are any active filters
-  const hasActiveFilters = severity !== "all" || type !== "all";
+  const hasActiveFilters =
+    timeRange !== "all" || severity !== "all" || type !== "all";
 
   return (
     <Popover
@@ -70,6 +88,18 @@ export default function AlertsFiltersPopover({
           >
             ✕
           </button>
+        </div>
+
+        {/* Time Range Filter */}
+        <div>
+          <label className="block text-sm text-gray-400 mb-2">Time Range</label>
+          <TimeRangeDropdown
+            value={stringToTimeRange(tempTimeRange)}
+            onChange={(newTimeRange: TimeRange) => {
+              setTempTimeRange(timeRangeToString(newTimeRange));
+            }}
+            solidBackground={true}
+          />
         </div>
 
         {/* Severity Filter */}
