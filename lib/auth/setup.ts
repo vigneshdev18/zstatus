@@ -13,11 +13,11 @@ export async function ensureDefaultAdmin(): Promise<void> {
       // Create default admin
       await createUserByAdmin(DEFAULT_ADMIN_EMAIL, "admin");
       console.log(
-        `[Setup] Created default admin account: ${DEFAULT_ADMIN_EMAIL}`
+        `[Setup] Created default admin account: ${DEFAULT_ADMIN_EMAIL}`,
       );
     } else {
       console.log(
-        `[Setup] Default admin already exists: ${DEFAULT_ADMIN_EMAIL}`
+        `[Setup] Default admin already exists: ${DEFAULT_ADMIN_EMAIL}`,
       );
     }
   } catch (error) {

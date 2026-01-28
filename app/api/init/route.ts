@@ -11,7 +11,7 @@ export async function GET() {
     console.error("[API] Error in /api/init:", error);
     return NextResponse.json(
       { error: "Initialization failed" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

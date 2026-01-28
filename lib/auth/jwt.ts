@@ -3,9 +3,7 @@ import { User } from "@/lib/db/users";
 import { NextRequest } from "next/server";
 import { isProduction, TOKEN_KEY } from "../constants/app.constants";
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "fallback-secret-change-in-production",
-);
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
 
 export interface AuthPayload {

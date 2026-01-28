@@ -4,7 +4,12 @@ import { verifyToken } from "@/lib/auth/jwt";
 import { TOKEN_KEY } from "./lib/constants/app.constants";
 
 // Public paths that don't require authentication
-const publicPaths = ["/login", "/api/auth/send-otp", "/api/auth/verify-otp"];
+const publicPaths = [
+  "/login",
+  "/api/auth/send-otp",
+  "/api/auth/verify-otp",
+  "/api/init",
+];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

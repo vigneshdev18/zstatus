@@ -2,6 +2,8 @@ import Link from "next/link";
 import { getAllIncidents } from "@/lib/db/incidents";
 import { formatDuration } from "@/lib/utils/format";
 
+export const dynamic = "force-dynamic";
+
 export default async function IncidentsPage() {
   const incidents = await getAllIncidents();
   const openIncidents = incidents.filter((i) => i.status === "OPEN");

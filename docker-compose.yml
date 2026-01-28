@@ -1,16 +1,18 @@
-version: "3.8"
-
 services:
-  # ZStatus Application
-  zstatus:
-    build: .
+  web:
+    image: web_status:v1.0
+    build:
+      context: .
     ports:
-      - "3000:3000"
+      - "5004:3000"
+    env_file:
+      - .env
     environment:
-      - NODE_ENV=production
-    depends_on:
-      - mongo
-    restart: unless-stopped
-
-volumes:
-  mongo-data:
+      - NEXT_PUBLIC_ENV_LOCAL=production
+    restart: always
+    healthcheck:
+      test:
+        ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
