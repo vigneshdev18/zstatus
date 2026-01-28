@@ -10,6 +10,8 @@ services:
     environment:
       - NEXT_PUBLIC_ENV_LOCAL=production
     restart: always
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test:
         ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/status"]
